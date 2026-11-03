@@ -548,6 +548,32 @@ class HueApiV1Endpoints:
         await self.ctl.config_instance.async_disable_link_mode_discovery()
         return web.Response(text=html_template, content_type="text/html")
 
+    @routes.get("/cleanup/{token}")
+    @check_request(False)
+    async def async_cleanup(self, request: web.Request):
+        """Clean up unused light entries (link from the Home Assistant notification)."""
+        config = self.ctl.config_instance
+        if not config.consume_cleanup_token(request.match_info["token"]):
+            return web.Response(text="Invalid or used token supplied!", status=403)
+        try:
+            result = await config.async_cleanup_lights()
+        except Exception as ex:  # pylint: disable=broad-except
+            LOGGER.exception("Cleanup failed")
+            return web.Response(text=f"Cleanup failed, nothing was changed: {ex}", status=500)
+        if config.can_restart_addon():
+            self.ctl.loop.call_later(
+                3, lambda: self.ctl.loop.create_task(config.async_restart_addon())
+            )
+            note = "The add-on restarts now. A notification in Home Assistant confirms it."
+        else:
+            note = "Please restart the add-on now."
+        html = (
+            "<html><body><h2>Cleanup done</h2>"
+            f"<p>Removed {result['removed']} unused light entries. "
+            f"Backup: {result['backup']}</p><p>{note}</p></body></html>"
+        )
+        return web.Response(text=html, content_type="text/html")
+
     @routes.get("/api/{username}/capabilities")
     @check_request()
     async def async_get_capabilities(self, request: web.Request):

@@ -61,6 +61,8 @@ async def async_start(
             len(ctl.controller_hass.get_entities()),
             len(ctl.controller_hass.items_by_domain("light")),
         )
+    # after a cleanup restart: give freed lights an id and notify in Home Assistant
+    await ctl.config_instance.async_report_cleanup()
     return ctl
 
 

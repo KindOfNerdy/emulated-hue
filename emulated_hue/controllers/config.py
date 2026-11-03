@@ -4,9 +4,11 @@ import datetime
 import hashlib
 import logging
 import os
+import shutil
 from pathlib import Path
 from typing import Any
 
+import aiohttp
 from getmac import get_mac_address
 
 from emulated_hue.const import (
@@ -28,6 +30,8 @@ from .models import Controller
 LOGGER = logging.getLogger(__name__)
 
 CONFIG_FILE = "emulated_hue.json"
+# written by the cleanup, read once after the add-on restarted
+CLEANUP_RESULT_FILE = "cleanup_result.json"
 DEFINITIONS_FILE = os.path.join(
     os.path.dirname(Path(__file__).parent.absolute()), "definitions.json"
 )
@@ -53,6 +57,7 @@ class Config:
         self._definitions = load_json(DEFINITIONS_FILE)
         self._link_mode_enabled = False
         self._link_mode_discovery_key = None
+        self._cleanup_token: str | None = None
 
         # Get the IP address that will be passed to during discovery
         self._ip_addr = get_local_ip()
@@ -222,16 +227,145 @@ class Config:
             light_id,
             LIGHT_ID_CLIENT_LIMIT,
         )
+        if not self._cleanup_token:
+            self._cleanup_token = create_secure_string(32)
+        url = f"http://{self.ip_addr}/cleanup/{self._cleanup_token}"
         msg = (
             f"The light `{entity_id}` got the id {light_id}. Some clients (e.g. a "
             f"Philips TV for Ambilight+Hue) only list lights with an id up to "
             f"{LIGHT_ID_CLIENT_LIMIT}, so it may not show up there.\n\n"
-            "To fix it: stop the add-on, make a backup of `emulated_hue.json`, "
-            "remove unused light entries and the entry of this light, then start "
-            "the add-on again. The light then gets the lowest free id."
+            "Click the link below to clean up: it makes a backup of "
+            "`emulated_hue.json`, removes light entries that are not exported "
+            "(missing in Home Assistant or filtered out by `include_labels`), gives "
+            "this light a free id and restarts the add-on.\n\n"
+            f"**[Clean up now]({url})**"
         )
         await self.ctl.controller_hass.async_create_notification(
             msg, f"hue_bridge_light_id_{light_id}"
+        )
+
+    def consume_cleanup_token(self, token: str) -> bool:
+        """Return True if the token is valid. A token can only be used once."""
+        if not token or not self._cleanup_token or token != self._cleanup_token:
+            return False
+        self._cleanup_token = None
+        return True
+
+    async def async_cleanup_lights(self) -> dict:
+        """
+        Remove light entries that are not exported and free ids above the limit.
+
+        Makes a backup of the config first. Nothing is changed if no lights are
+        exported (e.g. Home Assistant not loaded yet).
+        """
+        exported = set(self.ctl.controller_hass.get_entities())
+        if not exported:
+            raise Exception("No exported lights found (Home Assistant not loaded?)")
+        lights = self._config.get("lights", {})
+        groups = self._config.get("groups", {})
+        scenes = self._config.get("scenes", {})
+        used_ids = set()
+        for group in groups.values():
+            used_ids.update(group.get("lights", []))
+        for scene in scenes.values():
+            used_ids.update(scene.get("lightstates", {}))
+
+        remove_ids: list[str] = []
+        reset: list[dict] = []
+        kept_high: list[dict] = []
+        for light_id, light_conf in lights.items():
+            item = {"entity_id": light_conf["entity_id"], "old_id": light_id}
+            if light_conf["entity_id"] not in exported:
+                remove_ids.append(light_id)
+            elif int(light_id) > LIGHT_ID_CLIENT_LIMIT:
+                # lights used in groups or scenes keep their entry
+                (kept_high if light_id in used_ids else reset).append(item)
+
+        # save pending changes, then make a backup of the file
+        path = self.get_path(CONFIG_FILE)
+        await async_save_json(path, self._config)
+        backup = f"{CONFIG_FILE}.cleanup-{datetime.datetime.now():%Y%m%d-%H%M%S}"
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(
+            None, shutil.copy2, path, self.get_path(backup)
+        )
+
+        # remove the entries and every reference to them
+        gone_ids = set(remove_ids) | {item["old_id"] for item in reset}
+        for light_id in gone_ids:
+            lights.pop(light_id, None)
+        for group in groups.values():
+            if "lights" in group:
+                group["lights"] = [i for i in group["lights"] if i not in gone_ids]
+        for scene in scenes.values():
+            for light_id in gone_ids:
+                scene.get("lightstates", {}).pop(light_id, None)
+        await async_save_json(path, self._config)
+
+        result = {
+            "removed": len(remove_ids),
+            "reset": reset,
+            "kept_high": kept_high,
+            "backup": backup,
+        }
+        await async_save_json(self.get_path(CLEANUP_RESULT_FILE), result)
+        LOGGER.info(
+            "Cleanup: removed %s unused light entries, reset %s, backup %s",
+            len(remove_ids),
+            len(reset),
+            backup,
+        )
+        return result
+
+    @staticmethod
+    def can_restart_addon() -> bool:
+        """Return True if this add-on can restart itself through the Supervisor."""
+        return bool(os.environ.get("SUPERVISOR_TOKEN"))
+
+    async def async_restart_addon(self) -> None:
+        """Restart this add-on (POST /addons/self/restart on the Supervisor API)."""
+        token = os.environ.get("SUPERVISOR_TOKEN")
+        if not token:
+            return
+        try:
+            async with aiohttp.ClientSession() as session, session.post(
+                "http://supervisor/addons/self/restart",
+                headers={"Authorization": f"Bearer {token}"},
+            ) as resp:
+                if resp.status != 200:
+                    LOGGER.error("Restart through the Supervisor failed (%s)", resp.status)
+        except aiohttp.ClientError as ex:
+            LOGGER.error("Restart through the Supervisor failed: %s", ex)
+
+    async def async_report_cleanup(self) -> None:
+        """After a cleanup restart: give freed lights an id and notify in HA."""
+        result_path = self.get_path(CLEANUP_RESULT_FILE)
+        result = load_json(result_path)
+        if not result:
+            return
+        try:
+            os.remove(result_path)
+        except OSError:
+            pass
+        exported = self.ctl.controller_hass.get_entities()
+        lines = [
+            f"Removed {result.get('removed', 0)} unused light entries. "
+            f"Backup: `{result.get('backup')}`."
+        ]
+        for item in result.get("reset", []):
+            await self.ctl.controller_hass.async_dismiss_notification(
+                f"hue_bridge_light_id_{item['old_id']}"
+            )
+            if item["entity_id"] in exported:
+                new_id = await self.async_entity_id_to_light_id(item["entity_id"])
+                lines.append(f"`{item['entity_id']}` now has id {new_id}.")
+        for item in result.get("kept_high", []):
+            lines.append(
+                f"`{item['entity_id']}` keeps id {item['old_id']} because it is "
+                "used in a group or scene."
+            )
+        await self.ctl.controller_hass.async_create_notification(
+            "\n\n".join(lines), "hue_bridge_cleanup_done"
         )
 
     async def async_get_light_config(self, light_id: str) -> dict:

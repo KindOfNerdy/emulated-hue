@@ -8,6 +8,16 @@ Options: `http_port`, `https_port`, `use_default_ports_for_discovery`, `verbose`
 A new light gets the lowest unused ID instead of `max + 1`. Existing entries
 and IDs are not changed.
 
+## Notification for IDs above 63
+
+If a new light gets an ID above 63, the log shows a warning and Home Assistant
+shows a notification (some clients, e.g. a Philips TV, only list IDs up to 63).
+The notification has a **Clean up now** link. It makes a backup
+(`emulated_hue.json.cleanup-<time>`), removes light entries that are not
+exported (missing in Home Assistant or filtered by `include_labels`), gives the
+light a free ID and restarts the add-on. A second notification confirms it.
+Lights used in groups or scenes keep their ID. The link works once.
+
 ## Label filter (`include_labels`)
 
 Only export lights that carry one of these Home Assistant labels. Set the
