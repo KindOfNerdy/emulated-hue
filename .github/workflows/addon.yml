@@ -4,7 +4,15 @@ name: Add-on Image & Release
 # creates a GitHub release for the add-on version in addon/config.json.
 # A weekly run checks whether the base image or s6-overlay changed (docker/base.lock).
 # If so, it rebuilds, bumps the patch version, updates the changelog and releases it.
+# A merged Dependabot update is released the same way. Pull requests only build,
+# smoke-test and scan the image; nothing is pushed or released for them.
 on:
+  pull_request:
+    branches: [master]
+    paths:
+      - docker/**
+      - requirements.txt
+      - .github/workflows/addon.yml
   push:
     branches: [master]
     paths:
@@ -16,9 +24,14 @@ on:
   schedule:
     - cron: "17 3 * * 1"
   workflow_dispatch:
+    inputs:
+      bump:
+        description: Bump the patch version and release (used after a Dependabot merge)
+        type: boolean
+        default: false
 
 concurrency:
-  group: addon-image
+  group: ${{ github.event_name == 'pull_request' && format('addon-pr-{0}', github.ref) || 'addon-image' }}
   cancel-in-progress: false
 
 env:
@@ -33,6 +46,7 @@ jobs:
       init_lock: ${{ steps.p.outputs.init_lock }}
       base: ${{ steps.p.outputs.base }}
       s6: ${{ steps.p.outputs.s6 }}
+      reason: ${{ steps.p.outputs.reason }}
     steps:
       - uses: actions/checkout@v4
 
@@ -43,6 +57,8 @@ jobs:
         run: |
           current=$(jq -r .version addon/config.json)
           version="$current"; bumped=false; init_lock=false
+          reason="Automatic rebuild on an updated base image or s6-overlay (security updates)."
+          author=$(git log -1 --format=%an)
           pyver=$(sed -n 's/^ARG PYTHON_VERSION="\(.*\)"/\1/p' docker/Dockerfile)
           base=$(docker buildx imagetools inspect "python:${pyver}-slim" --format '{{.Manifest.Digest}}')
           s6=$(gh api repos/just-containers/s6-overlay/releases/latest --jq .tag_name)
@@ -53,10 +69,14 @@ jobs:
               bumped=true
               version="${current%.*}.$(( ${current##*.} + 1 ))"
             fi
+          elif [ "${{ github.event.inputs.bump }}" = "true" ] || { [ "${{ github.event_name }}" = "push" ] && [ "$author" = "dependabot[bot]" ]; }; then
+            bumped=true
+            version="${current%.*}.$(( ${current##*.} + 1 ))"
+            reason="Updated dependencies (automatic Dependabot update)."
           fi
           {
             echo "version=$version"; echo "bumped=$bumped"; echo "init_lock=$init_lock"
-            echo "base=$base"; echo "s6=$s6"
+            echo "base=$base"; echo "s6=$s6"; echo "reason=$reason"
           } >> "$GITHUB_OUTPUT"
           echo "current=$current new=$version base=$base s6=$s6 bumped=$bumped init=$init_lock"
 
@@ -86,6 +106,14 @@ jobs:
           cache-from: type=gha,scope=amd64
           cache-to: type=gha,scope=amd64,mode=max
 
+      - name: Smoke test
+        run: |
+          docker run --rm --entrypoint python scan:latest -c "
+          import aiohttp, cryptography, hass_client, zeroconf, pydantic
+          import emulated_hue.ssl_cert, emulated_hue.web, emulated_hue.apiv1
+          print('imports ok', aiohttp.__version__, cryptography.__version__)"
+          docker run --rm --entrypoint sh scan:latest -c 'test -x /init && command -v bashio'
+
       - name: Scan for vulnerabilities
         uses: aquasecurity/trivy-action@v0.36.0
         with:
@@ -95,12 +123,14 @@ jobs:
           exit-code: "1"
 
       - uses: docker/login-action@v3
+        if: ${{ github.event_name != 'pull_request' }}
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push multi-arch image
+        if: ${{ github.event_name != 'pull_request' }}
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -117,6 +147,7 @@ jobs:
 
   release:
     needs: [prepare, image]
+    if: ${{ github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -135,9 +166,9 @@ jobs:
           if [ "${{ needs.prepare.outputs.bumped }}" = "true" ]; then
             current=$(jq -r .version addon/config.json)
             sed -i "s/\"version\": \"$current\"/\"version\": \"$version\"/" addon/config.json
-            awk -v v="$version" 'NR==1{print; print ""; print "## " v; print ""; print "- Automatic rebuild on an updated base image or s6-overlay (security updates)."; next} {print}' addon/CHANGELOG.md > changelog.new
+            awk -v v="$version" -v r="${{ needs.prepare.outputs.reason }}" 'NR==1{print; print ""; print "## " v; print ""; print "- " r; next} {print}' addon/CHANGELOG.md > changelog.new
             mv changelog.new addon/CHANGELOG.md
-            msg="Bump add-on version to $version (automatic base image rebuild)"
+            msg="Bump add-on version to $version (automatic rebuild)"
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

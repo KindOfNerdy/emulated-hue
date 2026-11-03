@@ -1,0 +1,53 @@
+name: Dependabot auto-merge
+
+# Merges Dependabot PRs (patch and minor updates only) once all other checks
+# passed, then starts the add-on release workflow. Major updates stay open.
+on:
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  automerge:
+    name: automerge
+    if: ${{ github.actor == 'dependabot[bot]' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch Dependabot metadata
+        id: meta
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Wait for the other checks, merge and release
+        if: ${{ steps.meta.outputs.update-type != 'version-update:semver-major' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.html_url }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          # give the other workflows time to register their checks
+          sleep 90
+          for i in $(seq 1 120); do
+            runs=$(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/check-runs?per_page=100" \
+              --jq '[.check_runs[] | select(.name != "automerge")]')
+            total=$(jq 'length' <<<"$runs")
+            pending=$(jq '[.[] | select(.status != "completed")] | length' <<<"$runs")
+            failed=$(jq '[.[] | select(.status == "completed" and (.conclusion | IN("success","skipped","neutral") | not))] | length' <<<"$runs")
+            if [ "$failed" -gt 0 ]; then
+              echo "A check failed, leaving the PR open for review."
+              exit 0
+            fi
+            if [ "$total" -ge 1 ] && [ "$pending" -eq 0 ]; then
+              gh pr merge "$PR" --squash
+              # merges done with GITHUB_TOKEN do not trigger push workflows
+              gh workflow run addon.yml --ref master -f bump=true
+              exit 0
+            fi
+            sleep 30
+          done
+          echo "Checks did not finish in time, leaving the PR open."
