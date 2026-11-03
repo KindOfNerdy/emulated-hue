@@ -9,7 +9,11 @@ from typing import Any
 
 from getmac import get_mac_address
 
-from emulated_hue.const import CONFIG_WRITE_DELAY_SECONDS, DEFAULT_THROTTLE_MS
+from emulated_hue.const import (
+    CONFIG_WRITE_DELAY_SECONDS,
+    DEFAULT_THROTTLE_MS,
+    LIGHT_ID_CLIENT_LIMIT,
+)
 from emulated_hue.utils import (
     async_save_json,
     create_secure_string,
@@ -204,7 +208,31 @@ class Config:
             "throttle": DEFAULT_THROTTLE_MS,
         }
         await self.async_set_storage_value("lights", next_light_id, light_config)
+        if free_id > LIGHT_ID_CLIENT_LIMIT:
+            await self._async_warn_high_light_id(entity_id, next_light_id)
         return next_light_id
+
+    async def _async_warn_high_light_id(self, entity_id: str, light_id: str) -> None:
+        """Log and notify in Home Assistant that a light got an id above the limit."""
+        LOGGER.warning(
+            "Light %s got id %s. Some clients (e.g. a Philips TV) only list lights "
+            "with an id <= %s, so it may not show up there. Remove unused entries "
+            "from emulated_hue.json.",
+            entity_id,
+            light_id,
+            LIGHT_ID_CLIENT_LIMIT,
+        )
+        msg = (
+            f"The light `{entity_id}` got the id {light_id}. Some clients (e.g. a "
+            f"Philips TV for Ambilight+Hue) only list lights with an id up to "
+            f"{LIGHT_ID_CLIENT_LIMIT}, so it may not show up there.\n\n"
+            "To fix it: stop the add-on, make a backup of `emulated_hue.json`, "
+            "remove unused light entries and the entry of this light, then start "
+            "the add-on again. The light then gets the lowest free id."
+        )
+        await self.ctl.controller_hass.async_create_notification(
+            msg, f"hue_bridge_light_id_{light_id}"
+        )
 
     async def async_get_light_config(self, light_id: str) -> dict:
         """Return light config for given light id."""

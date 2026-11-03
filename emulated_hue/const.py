@@ -8,6 +8,10 @@ ENTERTAINMENT_UPDATE_STATE_UPDATE_RATE = 1000
 
 CONFIG_WRITE_DELAY_SECONDS = 10
 
+# Observed behaviour (not documented): some clients, e.g. a Philips TV for
+# Ambilight+Hue, only list lights with an id <= 63
+LIGHT_ID_CLIENT_LIMIT = 63
+
 DEFAULT_TRANSITION_SECONDS = 0.4
 
 HASS_ATTR_BRIGHTNESS = "brightness"
