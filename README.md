@@ -1,5 +1,3 @@
-<a href="https://github.com/hass-emulated-hue/core/actions"><img alt="GitHub Actions Build" src="https://github.com/hass-emulated-hue/core/actions/workflows/docker-build.yaml/badge.svg"></a>
-<a href="https://hub.docker.com/r/hassemulatedhue/core"><img alt="Docker Pulls" src="https://img.shields.io/docker/pulls/hassemulatedhue/core.svg"></a>
 # Hue Emulation for Home Assistant
 
 Convert your Home Assistant instance to a fully functional Philips HUE bridge!
@@ -21,7 +19,7 @@ Control all lights connected to your Home Assistant box with HUE compatible apps
 
 ## How to run/install/use this thing ?
 - Add the custom repository to the Home Assistant supervisor's add-on store: 
-  https://github.com/hass-emulated-hue/hassio-repo
+  https://github.com/KindOfNerdy/emulated-hue
 - Install the Emulated HUE addon from the addon-store
 - Start the newly installed addon and it will work instantly
 
@@ -70,10 +68,6 @@ You can also delete a light in the HUE app. That will also mark the light as dis
 
 Entertainment mode is heavy. It will send multiple commands per second to each light. If you hardware can't cope up with this we have an advanced little setting hidden in the above mentioned emulated_hue.json config file called "entertainment_throttle". Set a value (in milliseconds) to throttle requests to this light. A good value to start with is 500. Remember to stop the addon before you start editing this file.
 
-
-
-#### I run Home Assistant manually without all the supervisor stuff, can I still run this thing ?
-Sure, just run the docker image manually. We'll provide you with some sample run commands soon.
 
 
 #### How does this thing differ from the existing solution diyHue ?
