@@ -86,6 +86,9 @@ jobs:
           cache-from: type=gha,scope=amd64
           cache-to: type=gha,scope=amd64,mode=max
 
+      - name: DEBUG locate setuptools
+        run: docker run --rm --entrypoint sh scan:latest -c 'find / \( -iname "setuptools*" -o -iname "*.egg-info" \) -not -path "/proc/*" -maxdepth 7 2>/dev/null | grep -v "/_vendor/" | head -40'
+
       - name: Scan for vulnerabilities
         uses: aquasecurity/trivy-action@v0.36.0
         with:
