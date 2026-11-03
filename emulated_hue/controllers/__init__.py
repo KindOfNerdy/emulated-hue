@@ -31,15 +31,33 @@ async def async_start(
     # optional filter: only export lights carrying one of these HA label_ids.
     # The add-on option (comma separated) takes precedence over the key in
     # emulated_hue.json.
-    include_labels = parse_include_labels(
+    option_labels = parse_include_labels(
         load_json(SUPERVISOR_OPTIONS_FILE).get("include_labels")
-        or ctl.config_instance.get_storage_value("include_labels")
     )
+    json_labels = parse_include_labels(
+        ctl.config_instance.get_storage_value("include_labels")
+    )
+    if json_labels and not option_labels:
+        LOGGER.info(
+            "emulated_hue.json contains include_labels %s (still used). To manage it "
+            "in the add-on configuration, enter this in the option include_labels: %s",
+            sorted(json_labels),
+            ",".join(sorted(json_labels)),
+        )
+    elif json_labels and json_labels != option_labels:
+        LOGGER.warning(
+            "include_labels in emulated_hue.json %s is ignored, the add-on option %s "
+            "takes precedence.",
+            sorted(json_labels),
+            sorted(option_labels),
+        )
+    include_labels = option_labels or json_labels
     if include_labels:
         ctl.controller_hass.include_labels = include_labels
         LOGGER.info(
-            "include_labels %s: exporting %s of %s lights",
+            "include_labels %s (from %s): exporting %s of %s lights",
             sorted(include_labels),
+            "add-on option" if option_labels else "emulated_hue.json",
             len(ctl.controller_hass.get_entities()),
             len(ctl.controller_hass.items_by_domain("light")),
         )

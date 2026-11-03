@@ -1,0 +1,16 @@
+configuration:
+  verbose:
+    name: Ausführliche Protokollierung
+    description: Schreibt mehr Details ins Protokoll.
+  http_port:
+    name: HTTP-Port
+    description: Port der HTTP-API. Leer lassen für 80. Hue-Apps und TVs erwarten 80.
+  https_port:
+    name: HTTPS-Port
+    description: Port der HTTPS-API. Leer lassen für 443. Hue-Apps und TVs erwarten 443.
+  use_default_ports_for_discovery:
+    name: Standard-Ports für die Erkennung
+    description: Hört auf den eingestellten Ports, meldet aber weiter 80 und 443. Nützlich hinter einem Reverse Proxy.
+  include_labels:
+    name: Nur Lichter mit diesen Labels exportieren
+    description: Label-IDs aus Home Assistant (nicht die Anzeigenamen), durch Komma getrennt, z. B. ambilight. Exportiert werden nur Lichter, die eines dieser Labels direkt an der Entität tragen. Leer bedeutet alle Lichter. Nach Änderungen das Add-on neu starten.

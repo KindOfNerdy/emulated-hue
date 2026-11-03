@@ -1,0 +1,16 @@
+configuration:
+  verbose:
+    name: Verbose logging
+    description: Write more details to the log.
+  http_port:
+    name: HTTP port
+    description: Port of the HTTP API. Leave empty for 80. Hue apps and TVs expect 80.
+  https_port:
+    name: HTTPS port
+    description: Port of the HTTPS API. Leave empty for 443. Hue apps and TVs expect 443.
+  use_default_ports_for_discovery:
+    name: Use default ports for discovery
+    description: Listen on the configured ports, but keep advertising 80 and 443. Useful behind a reverse proxy.
+  include_labels:
+    name: Export only lights with these labels
+    description: Home Assistant label IDs (not display names), comma separated, e.g. ambilight. Only lights that carry one of these labels on the entity itself are exported. Empty means all lights. Restart the add-on after changes.
