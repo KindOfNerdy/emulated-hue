@@ -37,7 +37,8 @@ top-level key to `emulated_hue.json`:
 - The log shows `include_labels [...]: exporting N of M lights` at startup.
 - Room groups built from Home Assistant areas ignore the filter.
 
-## Updating the code
+## Updates
 
-The Dockerfile downloads the fork branch when the add-on is built. Bump
-`version` in `addon/config.json` to build again with the latest code.
+The add-on uses a prebuilt image per version. It is rebuilt every Monday when the
+base image changes and after Dependabot updates; each rebuild gets a new patch
+version and a GitHub release, so Home Assistant offers it as an update.

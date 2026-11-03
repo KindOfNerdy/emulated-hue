@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.8
+
+- The add-on now ships its own prebuilt image (`ghcr.io/kindofnerdy/emulated-hue`, amd64 and aarch64) instead of building on top of the official `0.3.0` image. The image is security-scanned and rebuilt automatically.
+- Updated `aiohttp` (3.14.4) and `cryptography` (50.0.0) to fix known security issues; removed `setuptools` and `wheel` from the image.
+
 ## 0.3.7
 
 - The Home Assistant notification for a light with an ID above 63 now has a **Clean up now** link. It makes a backup of `emulated_hue.json`, removes light entries that are not exported (missing in Home Assistant or filtered out by `include_labels`), gives the light a free ID and restarts the add-on. A second notification confirms the result. Lights used in groups or scenes keep their ID.

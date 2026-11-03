@@ -1,7 +1,7 @@
 name: Dependabot auto-merge
 
-# Merges Dependabot PRs (patch and minor updates only) once all other checks
-# passed, then starts the add-on release workflow. Major updates stay open.
+# Merges Dependabot PRs (patch updates only) once all other checks passed, then
+# starts the add-on release workflow. Minor and major updates stay open for review.
 on:
   pull_request:
     branches: [master]
@@ -24,7 +24,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Wait for the other checks, merge and release
-        if: ${{ steps.meta.outputs.update-type != 'version-update:semver-major' }}
+        if: ${{ steps.meta.outputs.update-type == 'version-update:semver-patch' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR: ${{ github.event.pull_request.html_url }}

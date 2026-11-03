@@ -9,5 +9,6 @@ Differences to the official add-on:
 - Optional `include_labels` filter: only lights carrying a given Home Assistant
   label are exported.
 
-It is built on the official `0.3.0` image; only the `emulated_hue` package is
-replaced. Do not run it at the same time as the official add-on (same ports).
+It ships its own image (`ghcr.io/kindofnerdy/emulated-hue`, amd64 and aarch64),
+built and security-scanned from this repository. Do not run it at the same time
+as the official add-on (same ports).
