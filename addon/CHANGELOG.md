@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.7
+
+- The Home Assistant notification for a light with an ID above 63 now has a **Clean up now** link. It makes a backup of `emulated_hue.json`, removes light entries that are not exported (missing in Home Assistant or filtered out by `include_labels`), gives the light a free ID and restarts the add-on. A second notification confirms the result. Lights used in groups or scenes keep their ID.
+
 ## 0.3.6
 
 - A new light that gets an ID above 63 now triggers a warning in the log and a Home Assistant notification with instructions. Some clients (e.g. a Philips TV for Ambilight+Hue) only list lights with an ID up to 63 (observed behaviour).
