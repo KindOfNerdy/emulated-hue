@@ -1,6 +1,6 @@
 {
   "name": "Emulated HUE (Fork)",
-  "version": "0.3.9",
+  "version": "0.3.10",
   "image": "ghcr.io/kindofnerdy/emulated-hue",
   "slug": "emulated_hue_fork",
   "description": "Hue Emulation for Home Assistant (fork: lowest free light ID, label filter)",

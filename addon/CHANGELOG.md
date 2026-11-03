@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.10
+
+- Updated dependencies: aiohttp  → 3.14.5, zeroconf  → 0.47.4, ruff  → 0.17.3
+
 ## 0.3.9
 
 - Updated dependencies (automatic Dependabot update).
