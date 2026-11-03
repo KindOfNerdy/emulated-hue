@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.6
+
+- A new light that gets an ID above 63 now triggers a warning in the log and a Home Assistant notification with instructions. Some clients (e.g. a Philips TV for Ambilight+Hue) only list lights with an ID up to 63 (observed behaviour).
+
 ## 0.3.5
 
 - Add names and descriptions (English, German) for all add-on options.
