@@ -25,6 +25,7 @@
     "http_port": "int?",
     "https_port": "int?",
     "use_default_ports_for_discovery": "bool?",
+    "include_labels": "str?",
     "verbose": "bool"
   }
 }

@@ -18,6 +18,13 @@ from emulated_hue.const import (
 LOGGER = logging.getLogger(__name__)
 
 
+def parse_include_labels(value: str | list | None) -> set[str]:
+    """Return label_ids from a comma separated string or a list (empty = no filter)."""
+    if isinstance(value, str):
+        value = value.split(",")
+    return {str(label).strip() for label in value or [] if str(label).strip()}
+
+
 class HomeAssistantController(HomeAssistantClient):
     """Abstraction on hass client API."""
 
