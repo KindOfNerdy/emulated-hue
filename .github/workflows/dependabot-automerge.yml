@@ -1,7 +1,8 @@
 name: Dependabot auto-merge
 
-# Merges Dependabot PRs (patch updates only) once all other checks passed, then
-# starts the add-on release workflow. Minor and major updates stay open for review.
+# Merges Dependabot PRs (patch and minor updates, also grouped ones) once all other
+# checks passed, then starts the add-on release workflow. Any major update in a PR
+# keeps it open for review.
 on:
   pull_request:
     branches: [master]
@@ -23,8 +24,19 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Check that no dependency in the PR is a major update
+        id: safe
+        env:
+          DEPS: ${{ steps.meta.outputs.updated-dependencies-json }}
+        run: |
+          majors=$(jq '[.[] | select(.updateType == "version-update:semver-major")] | length' <<<"$DEPS")
+          total=$(jq 'length' <<<"$DEPS")
+          if [ "$majors" -eq 0 ] && [ "$total" -gt 0 ]; then ok=true; else ok=false; fi
+          echo "ok=$ok" >> "$GITHUB_OUTPUT"
+          echo "dependencies=$total majors=$majors ok=$ok"
+
       - name: Wait for the other checks, merge and release
-        if: ${{ steps.meta.outputs.update-type == 'version-update:semver-patch' }}
+        if: ${{ steps.safe.outputs.ok == 'true' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR: ${{ github.event.pull_request.html_url }}
