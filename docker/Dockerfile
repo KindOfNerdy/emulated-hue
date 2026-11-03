@@ -117,8 +117,8 @@ RUN --mount=type=bind,target=/tmp/wheels,source=/wheels,from=wheels-builder,rw \
     set -x \
     && pip install --no-cache-dir -f /tmp/wheels -r /tmp/wheels/requirements.txt
 
-# Update build tooling bundled with the base image (fixes known CVEs in setuptools/wheel)
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel
+# Build tooling is not needed at runtime; removing it avoids CVEs in setuptools/wheel
+RUN pip uninstall -y setuptools wheel
 
 # Copy root filesystem
 COPY --chmod=0755 docker/rootfs /
