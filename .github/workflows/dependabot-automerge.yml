@@ -33,7 +33,14 @@ jobs:
           total=$(jq 'length' <<<"$DEPS")
           if [ "$majors" -eq 0 ] && [ "$total" -gt 0 ]; then ok=true; else ok=false; fi
           echo "ok=$ok" >> "$GITHUB_OUTPUT"
-          echo "dependencies=$total majors=$majors ok=$ok"
+          # only pip and docker updates change the add-on image
+          image=$(jq '[.[] | select(.packageEcosystem == "pip" or .packageEcosystem == "docker")] | length' <<<"$DEPS")
+          if [ "$image" -gt 0 ]; then echo "release=true" >> "$GITHUB_OUTPUT"; else echo "release=false" >> "$GITHUB_OUTPUT"; fi
+          # changelog line: what was updated
+          list=$(jq -r '[.[] | select(.packageEcosystem == "pip" or .packageEcosystem == "docker") | "\(.dependencyName) \(.prevVersion) → \(.newVersion)"] | join(", ")' <<<"$DEPS")
+          echo "notes=Updated dependencies: $list" >> "$GITHUB_OUTPUT"
+          echo "dependencies=$total majors=$majors ok=$ok release_relevant=$image"
+          echo "$list"
 
       - name: Wait for the other checks, merge and release
         if: ${{ steps.safe.outputs.ok == 'true' }}
@@ -41,6 +48,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR: ${{ github.event.pull_request.html_url }}
           SHA: ${{ github.event.pull_request.head.sha }}
+          RELEASE: ${{ steps.safe.outputs.release }}
+          NOTES: ${{ steps.safe.outputs.notes }}
         run: |
           # give the other workflows time to register their checks
           sleep 90
@@ -56,8 +65,11 @@ jobs:
             fi
             if [ "$total" -ge 1 ] && [ "$pending" -eq 0 ]; then
               gh pr merge "$PR" --squash -R "$GITHUB_REPOSITORY"
-              # merges done with GITHUB_TOKEN do not trigger push workflows
-              gh workflow run addon.yml -R "$GITHUB_REPOSITORY" --ref master -f bump=true
+              # merges done with GITHUB_TOKEN do not trigger push workflows;
+              # GitHub Actions updates do not change the image, so no release for them
+              if [ "$RELEASE" = "true" ]; then
+                gh workflow run addon.yml -R "$GITHUB_REPOSITORY" --ref master -f bump=true -f notes="$NOTES"
+              fi
               exit 0
             fi
             sleep 30

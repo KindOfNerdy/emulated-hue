@@ -29,6 +29,10 @@ on:
         description: Bump the patch version and release (used after a Dependabot merge)
         type: boolean
         default: false
+      notes:
+        description: Changelog line for the bump (what was updated)
+        type: string
+        default: ""
 
 concurrency:
   group: ${{ github.event_name == 'pull_request' && format('addon-pr-{0}', github.ref) || 'addon-image' }}
@@ -54,6 +58,7 @@ jobs:
         id: p
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NOTES: ${{ github.event.inputs.notes }}
         run: |
           current=$(jq -r .version addon/config.json)
           version="$current"; bumped=false; init_lock=false
@@ -72,7 +77,7 @@ jobs:
           elif [ "${{ github.event.inputs.bump }}" = "true" ] || { [ "${{ github.event_name }}" = "push" ] && [ "$author" = "dependabot[bot]" ]; }; then
             bumped=true
             version="${current%.*}.$(( ${current##*.} + 1 ))"
-            reason="Updated dependencies (automatic Dependabot update)."
+            reason="${NOTES:-Updated dependencies (automatic Dependabot update).}"
           fi
           {
             echo "version=$version"; echo "bumped=$bumped"; echo "init_lock=$init_lock"
@@ -159,6 +164,8 @@ jobs:
       - name: Commit lock file and version bump
         id: commit
         if: ${{ needs.prepare.outputs.bumped == 'true' || needs.prepare.outputs.init_lock == 'true' }}
+        env:
+          REASON: ${{ needs.prepare.outputs.reason }}
         run: |
           version="${{ needs.prepare.outputs.version }}"
           printf 'base=%s\ns6=%s\n' "${{ needs.prepare.outputs.base }}" "${{ needs.prepare.outputs.s6 }}" > docker/base.lock
@@ -166,7 +173,7 @@ jobs:
           if [ "${{ needs.prepare.outputs.bumped }}" = "true" ]; then
             current=$(jq -r .version addon/config.json)
             sed -i "s/\"version\": \"$current\"/\"version\": \"$version\"/" addon/config.json
-            awk -v v="$version" -v r="${{ needs.prepare.outputs.reason }}" 'NR==1{print; print ""; print "## " v; print ""; print "- " r; next} {print}' addon/CHANGELOG.md > changelog.new
+            awk -v v="$version" -v r="$REASON" 'NR==1{print; print ""; print "## " v; print ""; print "- " r; next} {print}' addon/CHANGELOG.md > changelog.new
             mv changelog.new addon/CHANGELOG.md
             msg="Bump add-on version to $version (automatic rebuild)"
           fi
