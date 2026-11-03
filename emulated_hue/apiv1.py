@@ -559,12 +559,16 @@ class HueApiV1Endpoints:
             result = await config.async_cleanup_lights()
         except Exception as ex:  # pylint: disable=broad-except
             LOGGER.exception("Cleanup failed")
-            return web.Response(text=f"Cleanup failed, nothing was changed: {ex}", status=500)
+            return web.Response(
+                text=f"Cleanup failed, nothing was changed: {ex}", status=500
+            )
         if config.can_restart_addon():
             self.ctl.loop.call_later(
                 3, lambda: self.ctl.loop.create_task(config.async_restart_addon())
             )
-            note = "The add-on restarts now. A notification in Home Assistant confirms it."
+            note = (
+                "The add-on restarts now. A notification in Home Assistant confirms it."
+            )
         else:
             note = "Please restart the add-on now."
         html = (

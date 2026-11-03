@@ -286,9 +286,7 @@ class Config:
         await async_save_json(path, self._config)
         backup = f"{CONFIG_FILE}.cleanup-{datetime.datetime.now():%Y%m%d-%H%M%S}"
         loop = asyncio.get_running_loop()
-        await loop.run_in_executor(
-            None, shutil.copy2, path, self.get_path(backup)
-        )
+        await loop.run_in_executor(None, shutil.copy2, path, self.get_path(backup))
 
         # remove the entries and every reference to them
         gone_ids = set(remove_ids) | {item["old_id"] for item in reset}
@@ -333,7 +331,9 @@ class Config:
                 headers={"Authorization": f"Bearer {token}"},
             ) as resp:
                 if resp.status != 200:
-                    LOGGER.error("Restart through the Supervisor failed (%s)", resp.status)
+                    LOGGER.error(
+                        "Restart through the Supervisor failed (%s)", resp.status
+                    )
         except aiohttp.ClientError as ex:
             LOGGER.error("Restart through the Supervisor failed: %s", ex)
 
