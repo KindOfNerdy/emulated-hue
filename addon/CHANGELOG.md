@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.9
+
+- Updated dependencies (automatic Dependabot update).
+
 ## 0.3.8
 
 - The add-on now ships its own prebuilt image (`ghcr.io/kindofnerdy/emulated-hue`, amd64 and aarch64) instead of building on top of the official `0.3.0` image. The image is security-scanned and rebuilt automatically.
