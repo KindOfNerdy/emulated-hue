@@ -14,6 +14,17 @@ updates:
     groups:
       python-dependencies:
         update-types: ["patch", "minor"]
+    # Not covered by tests: these changed behaviour between versions and need a
+    # manual check on a real Home Assistant before they are raised.
+    ignore:
+      - dependency-name: "zeroconf"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      - dependency-name: "uvloop"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      - dependency-name: "getmac"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      - dependency-name: "pydantic"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: "docker"
     directory: "/docker"
     schedule:
