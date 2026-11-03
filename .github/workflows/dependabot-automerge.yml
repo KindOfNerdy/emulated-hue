@@ -43,9 +43,9 @@ jobs:
               exit 0
             fi
             if [ "$total" -ge 1 ] && [ "$pending" -eq 0 ]; then
-              gh pr merge "$PR" --squash
+              gh pr merge "$PR" --squash -R "$GITHUB_REPOSITORY"
               # merges done with GITHUB_TOKEN do not trigger push workflows
-              gh workflow run addon.yml --ref master -f bump=true
+              gh workflow run addon.yml -R "$GITHUB_REPOSITORY" --ref master -f bump=true
               exit 0
             fi
             sleep 30
