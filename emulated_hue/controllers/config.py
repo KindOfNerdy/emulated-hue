@@ -167,9 +167,14 @@ class Config:
             if entity_id == value["entity_id"]:
                 return key
         # light does not yet exist in config, create default config
-        next_light_id = "1"
-        if lights:
-            next_light_id = str(max(int(k) for k in lights) + 1)
+        # use the lowest free id (instead of max + 1) so ids stay as small as possible
+        # observed behaviour (not documented): some clients, e.g. a Philips TV for
+        # Ambilight+Hue, only list lights with an id <= 63
+        used_ids = {int(k) for k in lights}
+        free_id = 1
+        while free_id in used_ids:
+            free_id += 1
+        next_light_id = str(free_id)
         # generate unique id (fake zigbee address) from entity id
         unique_id = hashlib.md5(entity_id.encode()).hexdigest()
         unique_id = "00:{}:{}:{}:{}:{}:{}:{}-{}".format(
