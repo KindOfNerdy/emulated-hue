@@ -4,7 +4,7 @@
 FROM ghcr.io/hass-emulated-hue/core:0.3.0
 
 ARG FORK_REPO=KindOfNerdy/emulated-hue
-ARG FORK_REF=light-id-and-label-filter
+ARG FORK_REF=master
 # The Supervisor passes BUILD_VERSION (= "version" in config.json). Using it in the
 # RUN below invalidates the layer cache, so bump the version to fetch new code.
 ARG BUILD_VERSION=unknown
