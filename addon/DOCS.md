@@ -26,6 +26,7 @@ Add a top-level key to `emulated_hue.json`:
 - The labels are read when the add-on starts. Restart the add-on after
   changing labels in Home Assistant or the key in the JSON.
 - The log shows `include_labels [...]: exporting N of M lights` at startup.
+- Room groups built from Home Assistant areas ignore the filter.
 
 ## Updating the code
 

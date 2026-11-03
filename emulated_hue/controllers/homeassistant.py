@@ -3,6 +3,7 @@ import logging
 from collections.abc import Awaitable, Callable
 
 from hass_client import HomeAssistantClient
+from hass_client.exceptions import NotConnected
 
 from emulated_hue.const import (
     HASS_ATTR_ENTITY_ID,
@@ -19,6 +20,9 @@ LOGGER = logging.getLogger(__name__)
 
 class HomeAssistantController(HomeAssistantClient):
     """Abstraction on hass client API."""
+
+    # label_ids from "include_labels" in emulated_hue.json (None = export all)
+    include_labels: set[str] | None = None
 
     async def async_turn_off(self, entity_id: str) -> None:
         """
@@ -109,12 +113,42 @@ class HomeAssistantController(HomeAssistantClient):
         """
         Get entity_ids of a domain in Home Assistant.
 
+        If `include_labels` is set, only entities that carry at least one of these
+        labels (label_ids, set on the entity itself) are returned.
+
             :param domain: The domain of the entities.
             :return: A list of entity IDs.
         """
-        return [
+        entities = [
             entity["entity_id"] for entity in self.items_by_domain(domain) if entity
         ]
+        if not self.include_labels:
+            return entities
+        try:
+            registry = self.entity_registry
+        except NotConnected:
+            # registry not loaded (yet): do not silently export zero lights
+            LOGGER.warning(
+                "include_labels is set but the entity registry is not loaded, "
+                "not filtering."
+            )
+            return entities
+        filtered = [
+            entity_id
+            for entity_id in entities
+            if self.include_labels.intersection(
+                registry.get(entity_id, {}).get("labels") or []
+            )
+        ]
+        if not filtered and entities:
+            LOGGER.warning(
+                "include_labels %s matches none of the %s %s entities. "
+                "Use the label_id (e.g. 'ambilight'), not the display name.",
+                sorted(self.include_labels),
+                len(entities),
+                domain,
+            )
+        return filtered
 
     async def async_get_area_entities(
         self, domain_filter: list | None = None
