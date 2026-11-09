@@ -45,11 +45,13 @@ jobs:
           fi
           if [ "$majors" -eq 0 ] && [ "$total" -gt 0 ]; then ok=true; else ok=false; fi
           echo "ok=$ok" >> "$GITHUB_OUTPUT"
-          # only pip and docker updates change the add-on image
-          image=$(jq '[.[] | select(.packageEcosystem == "pip" or .packageEcosystem == "docker")] | length' <<<"$DEPS")
+          # only docker and production pip updates (requirements.txt) change the
+          # add-on image; dev tools (requirements-dev.txt) and Actions do not
+          inimage='select(.packageEcosystem == "docker" or (.packageEcosystem == "pip" and .dependencyType != "direct:development"))'
+          image=$(jq "[.[] | $inimage] | length" <<<"$DEPS")
           if [ "$image" -gt 0 ]; then echo "release=true" >> "$GITHUB_OUTPUT"; else echo "release=false" >> "$GITHUB_OUTPUT"; fi
           # changelog line: what was updated
-          list=$(jq -r '[.[] | select(.packageEcosystem == "pip" or .packageEcosystem == "docker") | "\(.dependencyName) " + (if (.prevVersion // "") == "" then "" else "\(.prevVersion) → " end) + .newVersion] | join(", ")' <<<"$DEPS")
+          list=$(jq -r "[.[] | $inimage"' | "\(.dependencyName) " + (if (.prevVersion // "") == "" then "" else "\(.prevVersion) → " end) + .newVersion] | join(", ")' <<<"$DEPS")
           echo "notes=$kind: $list" >> "$GITHUB_OUTPUT"
           echo "dependencies=$total security=$security blocking=$majors ok=$ok release_relevant=$image"
           echo "$list"
