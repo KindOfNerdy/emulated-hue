@@ -6,7 +6,7 @@
 
 ## 0.3.10
 
-- Updated dependencies: aiohttp  → 3.14.5, zeroconf  → 0.47.4, ruff  → 0.17.3
+- Updated dependencies: aiohttp 3.14.4 → 3.14.5, zeroconf 0.47.1 → 0.47.4, ruff 0.0.280 → 0.17.3
 
 ## 0.3.9
 

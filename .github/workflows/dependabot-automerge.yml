@@ -37,7 +37,7 @@ jobs:
           image=$(jq '[.[] | select(.packageEcosystem == "pip" or .packageEcosystem == "docker")] | length' <<<"$DEPS")
           if [ "$image" -gt 0 ]; then echo "release=true" >> "$GITHUB_OUTPUT"; else echo "release=false" >> "$GITHUB_OUTPUT"; fi
           # changelog line: what was updated
-          list=$(jq -r '[.[] | select(.packageEcosystem == "pip" or .packageEcosystem == "docker") | "\(.dependencyName) \(.prevVersion) → \(.newVersion)"] | join(", ")' <<<"$DEPS")
+          list=$(jq -r '[.[] | select(.packageEcosystem == "pip" or .packageEcosystem == "docker") | "\(.dependencyName) " + (if (.prevVersion // "") == "" then "" else "\(.prevVersion) → " end) + .newVersion] | join(", ")' <<<"$DEPS")
           echo "notes=Updated dependencies: $list" >> "$GITHUB_OUTPUT"
           echo "dependencies=$total majors=$majors ok=$ok release_relevant=$image"
           echo "$list"
