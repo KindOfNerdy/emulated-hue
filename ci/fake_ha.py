@@ -1,4 +1,5 @@
-"""Minimal fake Home Assistant for the CI start test.
+"""
+Minimal fake Home Assistant for the CI start test.
 
 Speaks just enough of the websocket API for hass_client to connect and load the
 full state: auth handshake, subscribe_events, get_states and the area, device and
@@ -45,10 +46,12 @@ RESULTS = {
 
 
 def log(*args):
+    """Print a line immediately so docker logs shows it."""
     print(*args, flush=True)
 
 
 async def websocket(request: web.Request) -> web.WebSocketResponse:
+    """Handle the Home Assistant websocket API (auth, then commands)."""
     ws = web.WebSocketResponse()
     await ws.prepare(request)
     await ws.send_json({"type": "auth_required", "ha_version": "2026.11.0"})
@@ -77,10 +80,12 @@ async def websocket(request: web.Request) -> web.WebSocketResponse:
 
 
 async def post_state(request: web.Request) -> web.Response:
+    """Accept REST state updates (used for entertainment mode)."""
     return web.json_response({})
 
 
 def main() -> None:
+    """Run the fake Home Assistant."""
     app = web.Application()
     app.router.add_get("/api/websocket", websocket)
     app.router.add_post("/api/states/{entity_id}", post_state)
