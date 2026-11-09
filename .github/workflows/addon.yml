@@ -140,7 +140,7 @@ jobs:
           docker run --rm --entrypoint sh scan:latest -c 'test -x /init && command -v bashio'
 
       - name: Start test against a fake Home Assistant
-        run: ci/start_test.sh scan:latest
+        run: ci/start_test.sh scan:latest wrong-token
 
       - name: Scan for vulnerabilities
         uses: aquasecurity/trivy-action@v0.36.0
