@@ -93,6 +93,8 @@ ENV DEBIAN_FRONTEND="noninteractive"
 
 RUN set -x \
     && apt-get update \
+    # pull Debian security fixes that the python base image does not ship yet
+    && apt-get upgrade -y \
     && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \

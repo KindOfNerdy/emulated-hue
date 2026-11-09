@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.11
+
+- Debian security updates are now installed when the image is built (fixes CVE-2026-85091 and CVE-2026-76844 in zlib); updated base image.
+
 ## 0.3.10
 
 - Updated dependencies: aiohttp  → 3.14.5, zeroconf  → 0.47.4, ruff  → 0.17.3
