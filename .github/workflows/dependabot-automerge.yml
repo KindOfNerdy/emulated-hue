@@ -1,8 +1,11 @@
 name: Dependabot auto-merge
 
-# Merges Dependabot PRs (patch updates only, also grouped ones) once all other
-# checks passed, then starts the add-on release workflow. Any minor or major update
-# in a PR keeps it open for review (the checks do not start the app yet).
+# Merges Dependabot PRs once all other checks passed (including the start test
+# against a fake Home Assistant), then starts the add-on release workflow.
+# Merged automatically: patch updates (also grouped ones) and security fixes up to
+# minor (group "security-fixes"), except zeroconf, uvloop and getmac, whose
+# behaviour on a real network the start test does not cover. Everything else stays
+# open for review.
 on:
   pull_request:
     branches: [master]
@@ -24,13 +27,22 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Check that every dependency in the PR is a patch update
+      - name: Check that the PR only contains safe updates
         id: safe
         env:
           DEPS: ${{ steps.meta.outputs.updated-dependencies-json }}
         run: |
-          majors=$(jq '[.[] | select(.updateType != "version-update:semver-patch")] | length' <<<"$DEPS")
           total=$(jq 'length' <<<"$DEPS")
+          # security fixes: patch and minor, but not the network-sensitive packages
+          security=$(jq '[.[] | select(.dependencyGroup == "security-fixes")] | length' <<<"$DEPS")
+          if [ "$total" -gt 0 ] && [ "$security" -eq "$total" ]; then
+            kind="Security update"
+            majors=$(jq '[.[] | select(.updateType == "version-update:semver-major"
+              or (.dependencyName | ascii_downcase | IN("zeroconf","uvloop","getmac")))] | length' <<<"$DEPS")
+          else
+            kind="Updated dependencies"
+            majors=$(jq '[.[] | select(.updateType != "version-update:semver-patch")] | length' <<<"$DEPS")
+          fi
           if [ "$majors" -eq 0 ] && [ "$total" -gt 0 ]; then ok=true; else ok=false; fi
           echo "ok=$ok" >> "$GITHUB_OUTPUT"
           # only pip and docker updates change the add-on image
@@ -38,8 +50,8 @@ jobs:
           if [ "$image" -gt 0 ]; then echo "release=true" >> "$GITHUB_OUTPUT"; else echo "release=false" >> "$GITHUB_OUTPUT"; fi
           # changelog line: what was updated
           list=$(jq -r '[.[] | select(.packageEcosystem == "pip" or .packageEcosystem == "docker") | "\(.dependencyName) " + (if (.prevVersion // "") == "" then "" else "\(.prevVersion) → " end) + .newVersion] | join(", ")' <<<"$DEPS")
-          echo "notes=Updated dependencies: $list" >> "$GITHUB_OUTPUT"
-          echo "dependencies=$total majors=$majors ok=$ok release_relevant=$image"
+          echo "notes=$kind: $list" >> "$GITHUB_OUTPUT"
+          echo "dependencies=$total security=$security blocking=$majors ok=$ok release_relevant=$image"
           echo "$list"
 
       - name: Wait for the other checks, merge and release

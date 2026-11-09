@@ -14,6 +14,12 @@ updates:
     groups:
       python-dependencies:
         update-types: ["patch", "minor"]
+      # security fixes come as their own PR; the auto-merge workflow recognises
+      # them by this group name and also merges minor updates once the start
+      # test passed
+      security-fixes:
+        applies-to: security-updates
+        update-types: ["patch", "minor"]
     # Not covered by tests: these changed behaviour between versions and need a
     # manual check on a real Home Assistant before they are raised.
     ignore:
