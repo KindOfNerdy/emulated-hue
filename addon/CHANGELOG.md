@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.13
+
+- Automatic rebuild with Debian security updates: base-files, libc-bin, libc6, libgssapi-krb5-2, libk5crypto3, libkrb5-3, libkrb5support0, libnghttp2-14, libssl3t64, openssl, openssl-provider-legacy.
+
 ## 0.3.12
 
 - Updated dependencies: ruff 0.17.3 → 0.17.4
