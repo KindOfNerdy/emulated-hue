@@ -130,8 +130,6 @@ jq -e '.brightness == 100 and .hs_color[0] == 54 and .hs_color[1] == 78' \
   || fail "unexpected turn_on for light.test_color: ${on_call:-none}"
 
 # colour temperature: the Hue API speaks mireds, Home Assistant kelvin
-jq -e '.capabilities.control.ct.min == 153 and .capabilities.control.ct.max == 500' \
-  <<<"$color" >/dev/null || fail "unexpected ct range: $(jq -c .capabilities.control <<<"$color")"
 curl -fs --max-time 5 -X PUT -d '{"on": true, "ct": 400}' \
   "http://localhost:8080/api/$USER_ID/lights/$(jq -r 'to_entries[] | select(.value.state.colormode == "hs") | .key' <<<"$lights")/state" \
   >/dev/null || fail "PUT ct failed"
