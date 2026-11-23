@@ -6,6 +6,7 @@ full state: auth handshake, subscribe_events, get_states and the area, device an
 entity registries. Every command type it receives is printed as "COMMAND <type>"
 so the start test can check that the app really requested the full state.
 """
+
 import json
 import sys
 

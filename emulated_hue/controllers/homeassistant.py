@@ -1,4 +1,5 @@
 """Controller for Home Assistant communication."""
+
 import logging
 from collections.abc import Awaitable, Callable
 
@@ -126,9 +127,7 @@ class HomeAssistantController(HomeAssistantClient):
             :param domain: The domain of the entities.
             :return: A list of entity IDs.
         """
-        entities = [
-            entity["entity_id"] for entity in self.items_by_domain(domain) if entity
-        ]
+        entities = [entity["entity_id"] for entity in self.items_by_domain(domain) if entity]
         if not self.include_labels:
             return entities
         try:
@@ -136,16 +135,13 @@ class HomeAssistantController(HomeAssistantClient):
         except NotConnected:
             # registry not loaded (yet): do not silently export zero lights
             LOGGER.warning(
-                "include_labels is set but the entity registry is not loaded, "
-                "not filtering."
+                "include_labels is set but the entity registry is not loaded, not filtering."
             )
             return entities
         filtered = [
             entity_id
             for entity_id in entities
-            if self.include_labels.intersection(
-                registry.get(entity_id, {}).get("labels") or []
-            )
+            if self.include_labels.intersection(registry.get(entity_id, {}).get("labels") or [])
         ]
         if not filtered and entities:
             LOGGER.warning(
@@ -157,9 +153,7 @@ class HomeAssistantController(HomeAssistantClient):
             )
         return filtered
 
-    async def async_get_area_entities(
-        self, domain_filter: list | None = None
-    ) -> dict[str, dict]:
+    async def async_get_area_entities(self, domain_filter: list | None = None) -> dict[str, dict]:
         """
         Get all areas mapped to entities contained. Excludes disabled entities.
 
@@ -180,9 +174,7 @@ class HomeAssistantController(HomeAssistantClient):
                     continue
                 device = self.device_registry.get(entity["device_id"])
                 # check if entity or device attached to entity is in area
-                if entity["area_id"] == area_id or (
-                    device and device["area_id"] == area_id
-                ):
+                if entity["area_id"] == area_id or (device and device["area_id"] == area_id):
                     area_entities.append(entity["entity_id"])
             result[area_id]["entities"] = area_entities
         return result
