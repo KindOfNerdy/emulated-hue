@@ -40,5 +40,6 @@ top-level key to `emulated_hue.json`:
 ## Updates
 
 The add-on uses a prebuilt image per version. It is rebuilt every Monday when the
-base image changes and after Dependabot updates; each rebuild gets a new patch
-version and a GitHub release, so Home Assistant offers it as an update.
+base image changes or Debian security updates are available, and after Dependabot
+updates; each rebuild gets a new patch version and a GitHub release, so Home
+Assistant offers it as an update.
