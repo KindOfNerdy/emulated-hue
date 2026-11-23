@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.0-dev.4
+
+- zeroconf 0.47.4 → 0.154.0 (fixes the open security advisories); mDNS registration unchanged.
+- Start test: checks that the bridge answers mDNS (`_hue._tcp.local.`) and SSDP with its bridge id.
+
 ## 0.4.0-dev.3
 
 - With verbose logging, every exported light is logged at startup as the Hue API serves it (type and state), so an install can be checked without pairing.
