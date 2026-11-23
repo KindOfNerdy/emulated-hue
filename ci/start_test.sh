@@ -16,12 +16,12 @@ NET=ehue-ci
 TIMEOUT=90
 CI_DIR="$(cd "$(dirname "$0")" && pwd)"
 USER_ID=ci-user
-DATA_DIR=$(mktemp -d)
+DATA_DIR=""
 
 cleanup() {
   docker rm -f ehue-app ehue-fakeha >/dev/null 2>&1
   docker network rm "$NET" >/dev/null 2>&1
-  rm -rf "$DATA_DIR"
+  if [ -n "$DATA_DIR" ]; then rm -rf "$DATA_DIR"; fi
 }
 fail() {
   echo "::error::Start test failed: $*"
@@ -33,6 +33,7 @@ trap cleanup EXIT
 cleanup
 
 # seed the data directory with an API user (same layout as a paired app)
+DATA_DIR=$(mktemp -d)
 chmod 777 "$DATA_DIR"
 cat > "$DATA_DIR/emulated_hue.json" <<EOF
 {"users": {"$USER_ID": {"name": "ci#start_test", "clientkey": "00000000000000000000000000000000",
