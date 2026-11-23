@@ -4,7 +4,7 @@ import asyncio
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from emulated_hue import const
 
@@ -30,12 +30,15 @@ class Controller:
 class EntityState(BaseModel):
     """Store device state."""
 
+    model_config = ConfigDict(validate_assignment=True)
+
     power_state: bool = True
     reachable: bool = True
     transition_seconds: float | None = None
     brightness: int | None = None
     color_temp: int | None = None
-    hue_saturation: tuple[int, int] | None = None
+    # Home Assistant reports hs_color as floats (e.g. 29.412, 85.098)
+    hue_saturation: tuple[float, float] | None = None
     xy_color: tuple[float, float] | None = None
     rgb_color: tuple[int, int, int] | None = None
     flash_state: str | None = None
@@ -48,11 +51,6 @@ class EntityState(BaseModel):
         brightness_equal = self.brightness == other.brightness
         color_attribute = self._get_color_mode_attribute() == other._get_color_mode_attribute()
         return power_state_equal and brightness_equal and color_attribute
-
-    class Config:
-        """Pydantic config."""
-
-        validate_assignment = True
 
     def _get_color_mode_attribute(self) -> tuple[str, Any] | None:
         """Return color mode and attribute associated."""
@@ -93,10 +91,10 @@ class EntityState(BaseModel):
             return EntityState()
 
         save_state = {}
-        for state in list(vars(cls).get("__fields__")):
+        for state in cls.model_fields:
             if state in save_state:
                 save_state[state] = states[state]
         return EntityState(**save_state)
 
 
-ALL_STATES: list = list(vars(EntityState).get("__fields__"))
+ALL_STATES: list = list(EntityState.model_fields)

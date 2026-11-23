@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Start test: runs the add-on image against a fake Home Assistant (ci/fake_ha.py)
-# and checks that the app connects, loads the full state and serves the Hue API.
+# and checks that the app connects, loads the full state and serves the Hue API,
+# including the light list with a colour light (fractional hs values from HA).
+# The data directory is seeded with an API user so the light list can be read
+# without pairing.
 #
 # Usage: ci/start_test.sh <image> [token]
 #   token defaults to the one the fake accepts; pass another to check that the
@@ -12,10 +15,13 @@ TOKEN="${2:-ci-token}"
 NET=ehue-ci
 TIMEOUT=90
 CI_DIR="$(cd "$(dirname "$0")" && pwd)"
+USER_ID=ci-user
+DATA_DIR=$(mktemp -d)
 
 cleanup() {
   docker rm -f ehue-app ehue-fakeha >/dev/null 2>&1
   docker network rm "$NET" >/dev/null 2>&1
+  rm -rf "$DATA_DIR"
 }
 fail() {
   echo "::error::Start test failed: $*"
@@ -26,11 +32,19 @@ fail() {
 trap cleanup EXIT
 cleanup
 
+# seed the data directory with an API user (same layout as a paired app)
+chmod 777 "$DATA_DIR"
+cat > "$DATA_DIR/emulated_hue.json" <<EOF
+{"users": {"$USER_ID": {"name": "ci#start_test", "clientkey": "00000000000000000000000000000000",
+  "create date": "2026-01-01T00:00:00", "username": "$USER_ID"}}}
+EOF
+
 docker network create "$NET" >/dev/null
 docker run -d --name ehue-fakeha --network "$NET" \
   -v "$CI_DIR:/ci:ro" --entrypoint python "$IMAGE" /ci/fake_ha.py >/dev/null
 docker run -d --name ehue-app --network "$NET" \
   -p 8080:80 -p 8443:443 \
+  -v "$DATA_DIR:/tmp/ehue-data" \
   -e HASS_URL=http://ehue-fakeha:8123 -e HASS_TOKEN="$TOKEN" \
   -e DATA_DIR=/tmp/ehue-data -e VERBOSE=true \
   "$IMAGE" >/dev/null
@@ -55,6 +69,18 @@ echo "Bridge config: $http"
 
 curl -fs --max-time 5 -o /dev/null http://localhost:8080/description.xml \
   || fail "/description.xml not served"
+
+# light list: both fake lights must be exported, the colour light with its
+# hs values converted from HA degrees/percent (29.412, 85.098) to Hue (0-65535, 0-254)
+lights=$(curl -fs --max-time 10 "http://localhost:8080/api/$USER_ID/lights") \
+  || fail "light list not served"
+echo "Lights: $lights"
+jq -e 'type == "object" and length == 2' <<<"$lights" >/dev/null \
+  || fail "expected 2 lights in: $lights"
+color=$(jq -c '[.[] | select(.state.colormode == "hs")][0]' <<<"$lights")
+[ -n "$color" ] && [ "$color" != "null" ] || fail "no light in colormode hs: $lights"
+jq -e '.state.on == true and .state.bri == 128 and .state.hue == 5353 and .state.sat == 216' \
+  <<<"$color" >/dev/null || fail "unexpected colour light state: $color"
 
 app_log=$(docker logs ehue-app 2>&1)
 ha_log=$(docker logs ehue-fakeha 2>&1)
