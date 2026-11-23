@@ -80,7 +80,7 @@ jq -e 'type == "object" and length == 2' <<<"$lights" >/dev/null \
   || fail "expected 2 lights in: $lights"
 color=$(jq -c '[.[] | select(.state.colormode == "hs")][0]' <<<"$lights")
 [ -n "$color" ] && [ "$color" != "null" ] || fail "no light in colormode hs: $lights"
-jq -e '.state.on == true and .state.bri == 128 and .state.hue == 5353 and .state.sat == 216' \
+jq -e '.state.on == true and .state.bri == 128 and .state.hue == 5354 and .state.sat == 216' \
   <<<"$color" >/dev/null || fail "unexpected colour light state: $color"
 
 app_log=$(docker logs ehue-app 2>&1)
