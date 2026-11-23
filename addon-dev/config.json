@@ -1,0 +1,38 @@
+{
+  "name": "Emulated HUE (Fork, Dev)",
+  "version": "0.4.0-dev.1",
+  "image": "ghcr.io/kindofnerdy/emulated-hue",
+  "slug": "emulated_hue_fork_dev",
+  "description": "Development build of the fork: own ports and data directory, no Hue discovery",
+  "url": "https://github.com/KindOfNerdy/emulated-hue",
+  "arch": ["aarch64", "amd64"],
+  "stage": "experimental",
+  "startup": "application",
+  "boot": "manual",
+  "init": false,
+  "homeassistant_api": true,
+  "ports": {
+    "80/tcp": 8080,
+    "443/tcp": 8443
+  },
+  "ports_description": {
+    "80/tcp": "Hue HTTP API",
+    "443/tcp": "Hue HTTPS API"
+  },
+  "map": [
+    {
+      "type": "homeassistant_config",
+      "read_only": false,
+      "path": "/config"
+    }
+  ],
+  "options": {
+    "data": "/config/hass-emulated-hue-dev",
+    "verbose": true
+  },
+  "schema": {
+    "data": "str",
+    "include_labels": "str?",
+    "verbose": "bool"
+  }
+}
