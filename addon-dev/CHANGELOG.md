@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.0-dev.7
+
+- Fix: colour temperature works with current Home Assistant again. It only reports and accepts kelvin now; the add-on converts to and from the mireds of the Hue API (state, range and commands). Before, clients always saw 153 and setting a colour temperature failed.
+- Dependabot: zeroconf, uvloop and getmac are no longer held back; patch and minor updates are merged automatically once the start test passed.
+
 ## 0.4.0-dev.6
 
 - Updated: python-slugify 7.0.0 → 9.2.0, hass-client 0.1.5 → 0.1.6 (no more hanging when Home Assistant cannot be reached).
