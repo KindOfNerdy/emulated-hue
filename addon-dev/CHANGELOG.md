@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.0-dev.5
+
+- Updated: uvloop 0.17.0 → 0.23.0, getmac 0.8.3 → 0.9.6, tzlocal 4.2 → 5.4.5, aiorun 2022.11.1 → 2025.1.1, netaddr 0.8.0 → 1.3.0.
+
 ## 0.4.0-dev.4
 
 - zeroconf 0.47.4 → 0.154.0 (fixes the open security advisories); mDNS registration unchanged.
