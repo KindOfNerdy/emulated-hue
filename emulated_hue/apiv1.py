@@ -673,7 +673,8 @@ class HueApiV1Endpoints:
                 return
             if isinstance(device, controllers.devices.BrightnessDevice):
                 device = cast("controllers.devices.BrightnessDevice", device)
-                current_state[const.HUE_ATTR_BRI] = device.brightness
+                # Home Assistant uses 0-255, the Hue API ends at 254
+                current_state[const.HUE_ATTR_BRI] = min(device.brightness, const.HUE_ATTR_BRI_MAX)
                 current_state[const.HUE_ATTR_ALERT] = (
                     convert_flash_state(device.flash_state, const.HASS)
                     if device.flash_state

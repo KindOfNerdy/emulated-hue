@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.0-dev.6
+
+- Updated: python-slugify 7.0.0 → 9.2.0, hass-client 0.1.5 → 0.1.6 (no more hanging when Home Assistant cannot be reached).
+- Fix: brightness reported to Hue clients is capped at 254 (Home Assistant goes up to 255).
+- Fix: the saved light state is used again at startup until Home Assistant reports the current one; an invalid saved state is ignored with a warning.
+
 ## 0.4.0-dev.5
 
 - Updated: uvloop 0.17.0 → 0.23.0, getmac 0.8.3 → 0.9.6, tzlocal 4.2 → 5.4.5, aiorun 2022.11.1 → 2025.1.1, netaddr 0.8.0 → 1.3.0.

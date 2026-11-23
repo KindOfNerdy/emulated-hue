@@ -1,10 +1,11 @@
 """Device state model."""
 
 import asyncio
+import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 from emulated_hue import const
 
@@ -14,6 +15,8 @@ if TYPE_CHECKING:
     from .config import Config
 else:
     Config = "Config"
+
+LOGGER = logging.getLogger(__name__)
 
 
 @dataclass
@@ -90,11 +93,12 @@ class EntityState(BaseModel):
         if not states:
             return EntityState()
 
-        save_state = {}
-        for state in cls.model_fields:
-            if state in save_state:
-                save_state[state] = states[state]
-        return EntityState(**save_state)
+        save_state = {state: states[state] for state in cls.model_fields if state in states}
+        try:
+            return EntityState(**save_state)
+        except ValidationError as err:
+            LOGGER.warning("Ignoring invalid saved light state %s: %s", states, err)
+            return EntityState()
 
 
 ALL_STATES: list = list(EntityState.model_fields)
