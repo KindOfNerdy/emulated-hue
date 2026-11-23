@@ -62,6 +62,11 @@ def get_local_ip() -> str:
         sock.close()
 
 
+def kelvin_to_mired(kelvin: float | None) -> int | None:
+    """Convert a colour temperature in kelvin to mireds (and back, same formula)."""
+    return round(1000000 / kelvin) if kelvin else None
+
+
 def get_ip_pton():
     """Return socket pton for local ip."""
     try:

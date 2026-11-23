@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 # Start test: runs the add-on image against a fake Home Assistant (ci/fake_ha.py)
-# and checks that the app connects, loads the full state and serves the Hue API.
+# and checks that the app connects, loads the full state and serves the Hue API,
+# including the light list with a colour light (fractional hs values from HA),
+# the control path (Hue state changes arrive as Home Assistant service calls) and
+# discovery (mDNS and SSDP answers, ci/discovery_check.py).
+# The data directory is seeded with an API user so the light list can be read
+# without pairing.
 #
 # Usage: ci/start_test.sh <image> [token]
 #   token defaults to the one the fake accepts; pass another to check that the
@@ -12,10 +17,13 @@ TOKEN="${2:-ci-token}"
 NET=ehue-ci
 TIMEOUT=90
 CI_DIR="$(cd "$(dirname "$0")" && pwd)"
+USER_ID=ci-user
+DATA_DIR=""
 
 cleanup() {
   docker rm -f ehue-app ehue-fakeha >/dev/null 2>&1
   docker network rm "$NET" >/dev/null 2>&1
+  if [ -n "$DATA_DIR" ]; then rm -rf "$DATA_DIR"; fi
 }
 fail() {
   echo "::error::Start test failed: $*"
@@ -26,11 +34,20 @@ fail() {
 trap cleanup EXIT
 cleanup
 
+# seed the data directory with an API user (same layout as a paired app)
+DATA_DIR=$(mktemp -d)
+chmod 777 "$DATA_DIR"
+cat > "$DATA_DIR/emulated_hue.json" <<EOF
+{"users": {"$USER_ID": {"name": "ci#start_test", "clientkey": "00000000000000000000000000000000",
+  "create date": "2026-01-01T00:00:00", "username": "$USER_ID"}}}
+EOF
+
 docker network create "$NET" >/dev/null
 docker run -d --name ehue-fakeha --network "$NET" \
   -v "$CI_DIR:/ci:ro" --entrypoint python "$IMAGE" /ci/fake_ha.py >/dev/null
 docker run -d --name ehue-app --network "$NET" \
   -p 8080:80 -p 8443:443 \
+  -v "$DATA_DIR:/tmp/ehue-data" \
   -e HASS_URL=http://ehue-fakeha:8123 -e HASS_TOKEN="$TOKEN" \
   -e DATA_DIR=/tmp/ehue-data -e VERBOSE=true \
   "$IMAGE" >/dev/null
@@ -56,10 +73,29 @@ echo "Bridge config: $http"
 curl -fs --max-time 5 -o /dev/null http://localhost:8080/description.xml \
   || fail "/description.xml not served"
 
+# discovery: mDNS (_hue._tcp) and SSDP answers inside the Docker network
+bridge_id=$(jq -r .bridgeid <<<"$http")
+discovery=$(docker run --rm --network "$NET" -v "$CI_DIR:/ci:ro" --entrypoint python "$IMAGE" \
+  /ci/discovery_check.py "$bridge_id" 2>&1) || fail "discovery check failed: $discovery"
+echo "$discovery"
+
+# light list: both fake lights must be exported, the colour light with its
+# hs values converted from HA degrees/percent (29.412, 85.098) to Hue (0-65535, 0-254)
+lights=$(curl -fs --max-time 10 "http://localhost:8080/api/$USER_ID/lights") \
+  || fail "light list not served"
+echo "Lights: $lights"
+jq -e 'type == "object" and length == 2' <<<"$lights" >/dev/null \
+  || fail "expected 2 lights in: $lights"
+color=$(jq -c '[.[] | select(.state.colormode == "hs")][0]' <<<"$lights")
+[ -n "$color" ] && [ "$color" != "null" ] || fail "no light in colormode hs: $lights"
+jq -e '.state.on == true and .state.bri == 128 and .state.hue == 5354 and .state.sat == 216' \
+  <<<"$color" >/dev/null || fail "unexpected colour light state: $color"
+
 app_log=$(docker logs ehue-app 2>&1)
 ha_log=$(docker logs ehue-fakeha 2>&1)
 
-for line in "Connected to Home Assistant" "Started HTTP webserver" "Started HTTPS webserver"; do
+for line in "Connected to Home Assistant" "Started HTTP webserver" "Started HTTPS webserver" \
+  "Exported 2 lights"; do
   grep -qF "$line" <<<"$app_log" || fail "missing log line: $line"
 done
 for bad in "Failed to create HTTP" "Cannot connect to Home Assistant" "Traceback"; do
@@ -69,5 +105,45 @@ for cmd in subscribe_events get_states config/area_registry/list \
   config/device_registry/list config/entity_registry/list; do
   grep -qx "COMMAND $cmd" <<<"$ha_log" || fail "app did not request $cmd"
 done
+
+# control path: switch the colour light (brightness + hue/sat) and turn the
+# dimmable light off through the Hue API; the fake must receive the service calls
+curl -fs --max-time 5 -X PUT -d '{"on": true, "bri": 100, "hue": 10000, "sat": 200}' \
+  "http://localhost:8080/api/$USER_ID/lights/$(jq -r 'to_entries[] | select(.value.state.colormode == "hs") | .key' <<<"$lights")/state" \
+  >/dev/null || fail "PUT colour light state failed"
+curl -fs --max-time 5 -X PUT -d '{"on": false}' \
+  "http://localhost:8080/api/$USER_ID/lights/$(jq -r 'to_entries[] | select(.value.state.colormode == null) | .key' <<<"$lights")/state" \
+  >/dev/null || fail "PUT dimmable light state failed"
+on_call=""; off_call=""
+for _ in $(seq 1 10); do
+  ha_log=$(docker logs ehue-fakeha 2>&1)
+  on_call=$(grep '^SERVICE homeassistant.turn_on ' <<<"$ha_log" | grep '"light.test_color"' | tail -1 || true)
+  off_call=$(grep '^SERVICE homeassistant.turn_off ' <<<"$ha_log" | grep '"light.test"' | tail -1 || true)
+  [ -n "$on_call" ] && [ -n "$off_call" ] && break
+  sleep 1
+done
+echo "Service calls: ${on_call:-none} | ${off_call:-none}"
+[ -n "$off_call" ] || fail "turn_off for light.test not received"
+# Hue hue 10000/65535 -> 54 degrees, sat 200/254 -> 78 %
+jq -e '.brightness == 100 and .hs_color[0] == 54 and .hs_color[1] == 78' \
+  <<<"${on_call#SERVICE homeassistant.turn_on }" >/dev/null \
+  || fail "unexpected turn_on for light.test_color: ${on_call:-none}"
+
+# colour temperature: the Hue API speaks mireds, Home Assistant kelvin
+# (sent after a pause: commands without a brightness change are throttled per light)
+sleep 2
+curl -fs --max-time 5 -X PUT -d '{"on": true, "ct": 400}' \
+  "http://localhost:8080/api/$USER_ID/lights/$(jq -r 'to_entries[] | select(.value.state.colormode == "hs") | .key' <<<"$lights")/state" \
+  >/dev/null || fail "PUT ct failed"
+ct_call=""
+for _ in $(seq 1 10); do
+  ct_call=$(docker logs ehue-fakeha 2>&1 | grep '^SERVICE homeassistant.turn_on ' | grep 'color_temp_kelvin' | tail -1 || true)
+  [ -n "$ct_call" ] && break
+  sleep 1
+done
+echo "Colour temperature call: ${ct_call:-none}"
+jq -e '.color_temp_kelvin == 2500 and (has("color_temp") | not)' \
+  <<<"${ct_call#SERVICE homeassistant.turn_on }" >/dev/null \
+  || fail "unexpected colour temperature call: ${ct_call:-none}"
 
 echo "Start test passed: app connected to the fake Home Assistant and serves the Hue API."

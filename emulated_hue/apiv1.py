@@ -673,7 +673,8 @@ class HueApiV1Endpoints:
                 return
             if isinstance(device, controllers.devices.BrightnessDevice):
                 device = cast("controllers.devices.BrightnessDevice", device)
-                current_state[const.HUE_ATTR_BRI] = device.brightness
+                # Home Assistant uses 0-255, the Hue API ends at 254
+                current_state[const.HUE_ATTR_BRI] = min(device.brightness, const.HUE_ATTR_BRI_MAX)
                 current_state[const.HUE_ATTR_ALERT] = (
                     convert_flash_state(device.flash_state, const.HASS)
                     if device.flash_state
@@ -753,6 +754,30 @@ class HueApiV1Endpoints:
                 continue
             result[device.light_id] = await self.__async_entity_to_hue(entity_id)
         return result
+
+    async def async_log_exported_lights(self) -> None:
+        """
+        Log every exported light as the Hue API serves it (debug logging only).
+
+        Builds the same light list a paired client gets, so a test install can be
+        checked without pairing. Assigns light ids like the first client request would.
+        """
+        if not LOGGER.isEnabledFor(logging.DEBUG):
+            return
+        try:
+            lights = await self.__async_get_all_lights()
+        except Exception:  # pylint: disable=broad-except
+            LOGGER.exception("Building the light list failed")
+            return
+        for light_id, light in lights.items():
+            LOGGER.debug(
+                "Exported light %s %s (%s): %s",
+                light_id,
+                light.get("name"),
+                light.get("type"),
+                json.dumps(light.get("state"), sort_keys=True),
+            )
+        LOGGER.debug("Exported %s lights", len(lights))
 
     async def __async_create_local_item(self, data: Any, itemtype: str = "scenes") -> str:
         """Create item in storage of given type (scenes etc.)."""

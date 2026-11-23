@@ -4,7 +4,8 @@ Minimal fake Home Assistant for the CI start test.
 Speaks just enough of the websocket API for hass_client to connect and load the
 full state: auth handshake, subscribe_events, get_states and the area, device and
 entity registries. Every command type it receives is printed as "COMMAND <type>"
-so the start test can check that the app really requested the full state.
+so the start test can check that the app really requested the full state; service
+calls are additionally printed as "SERVICE <domain>.<service> <service_data json>".
 """
 
 import json
@@ -15,34 +16,68 @@ from aiohttp import web
 TOKEN = "ci-token"
 
 AREA = {"area_id": "living_room", "name": "Living Room", "labels": []}
-DEVICE = {"id": "dev1", "area_id": "living_room", "name": "Test Lamp"}
-ENTITY = {
-    "entity_id": "light.test",
-    "device_id": "dev1",
-    "area_id": None,
-    "disabled_by": None,
-    "labels": [],
-}
-STATE = {
-    "entity_id": "light.test",
-    "state": "on",
-    "attributes": {
-        "friendly_name": "Test Lamp",
-        "brightness": 200,
-        "color_mode": "brightness",
-        "supported_color_modes": ["brightness"],
+DEVICES = [
+    {"id": "dev1", "area_id": "living_room", "name": "Test Lamp"},
+    {"id": "dev2", "area_id": "living_room", "name": "Test Color Lamp"},
+]
+ENTITIES = [
+    {
+        "entity_id": "light.test",
+        "device_id": "dev1",
+        "area_id": None,
+        "disabled_by": None,
+        "labels": [],
     },
-    "last_changed": "2026-01-01T00:00:00+00:00",
-    "last_updated": "2026-01-01T00:00:00+00:00",
-    "context": {"id": "ci", "parent_id": None, "user_id": None},
-}
+    {
+        "entity_id": "light.test_color",
+        "device_id": "dev2",
+        "area_id": None,
+        "disabled_by": None,
+        "labels": [],
+    },
+]
+STATES = [
+    {
+        "entity_id": "light.test",
+        "state": "on",
+        "attributes": {
+            "friendly_name": "Test Lamp",
+            "brightness": 200,
+            "color_mode": "brightness",
+            "supported_color_modes": ["brightness"],
+        },
+        "last_changed": "2026-01-01T00:00:00+00:00",
+        "last_updated": "2026-01-01T00:00:00+00:00",
+        "context": {"id": "ci", "parent_id": None, "user_id": None},
+    },
+    {
+        # colour values as Home Assistant reports them: floats with fractions
+        "entity_id": "light.test_color",
+        "state": "on",
+        "attributes": {
+            "friendly_name": "Test Color Lamp",
+            "brightness": 128,
+            "color_mode": "hs",
+            "supported_color_modes": ["color_temp", "hs", "xy"],
+            "hs_color": [29.412, 85.098],
+            "xy_color": [0.5267, 0.4133],
+            "rgb_color": [255, 149, 38],
+            "color_temp_kelvin": None,
+            "min_color_temp_kelvin": 2000,
+            "max_color_temp_kelvin": 6535,
+        },
+        "last_changed": "2026-01-01T00:00:00+00:00",
+        "last_updated": "2026-01-01T00:00:00+00:00",
+        "context": {"id": "ci", "parent_id": None, "user_id": None},
+    },
+]
 
 RESULTS = {
     "subscribe_events": None,
-    "get_states": [STATE],
+    "get_states": STATES,
     "config/area_registry/list": [AREA],
-    "config/device_registry/list": [DEVICE],
-    "config/entity_registry/list": [ENTITY],
+    "config/device_registry/list": DEVICES,
+    "config/entity_registry/list": ENTITIES,
 }
 
 
@@ -69,6 +104,13 @@ async def websocket(request: web.Request) -> web.WebSocketResponse:
             continue
         data = json.loads(msg.data)
         log("COMMAND", data.get("type"))
+        if data.get("type") == "call_service":
+            # one line per service call so the start test can check what was sent
+            log(
+                "SERVICE",
+                f"{data.get('domain')}.{data.get('service')}",
+                json.dumps(data.get("service_data") or {}, sort_keys=True),
+            )
         await ws.send_json(
             {
                 "id": data["id"],

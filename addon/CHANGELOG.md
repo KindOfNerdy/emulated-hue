@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.0
+
+- Colour temperature works with current Home Assistant again (it only reports and accepts kelvin now; before, clients always saw 153 and setting a colour temperature failed).
+- Hue and saturation from Home Assistant are no longer rounded down to whole degrees and percent.
+- Brightness reported to Hue clients is capped at 254.
+- The saved light state is used at startup until Home Assistant reports the current one.
+- With verbose logging, every exported light is listed at startup.
+- Updated dependencies: pydantic 2.14.4, zeroconf 0.154.0, uvloop 0.23.0, getmac 0.9.6, tzlocal 5.4.5, aiorun 2025.1.1, netaddr 1.3.0, python-slugify 9.2.0, hass-client 0.1.6.
+
 ## 0.3.13
 
 - Automatic rebuild with Debian security updates: base-files, libc-bin, libc6, libgssapi-krb5-2, libk5crypto3, libkrb5-3, libkrb5support0, libnghttp2-14, libssl3t64, openssl, openssl-provider-legacy.

@@ -1,12 +1,14 @@
 """Device state model."""
 
 import asyncio
+import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 from emulated_hue import const
+from emulated_hue.utils import kelvin_to_mired
 
 from .homeassistant import HomeAssistantController
 
@@ -14,6 +16,8 @@ if TYPE_CHECKING:
     from .config import Config
 else:
     Config = "Config"
+
+LOGGER = logging.getLogger(__name__)
 
 
 @dataclass
@@ -30,12 +34,15 @@ class Controller:
 class EntityState(BaseModel):
     """Store device state."""
 
+    model_config = ConfigDict(validate_assignment=True)
+
     power_state: bool = True
     reachable: bool = True
     transition_seconds: float | None = None
     brightness: int | None = None
     color_temp: int | None = None
-    hue_saturation: tuple[int, int] | None = None
+    # Home Assistant reports hs_color as floats (e.g. 29.412, 85.098)
+    hue_saturation: tuple[float, float] | None = None
     xy_color: tuple[float, float] | None = None
     rgb_color: tuple[int, int, int] | None = None
     flash_state: str | None = None
@@ -49,15 +56,11 @@ class EntityState(BaseModel):
         color_attribute = self._get_color_mode_attribute() == other._get_color_mode_attribute()
         return power_state_equal and brightness_equal and color_attribute
 
-    class Config:
-        """Pydantic config."""
-
-        validate_assignment = True
-
     def _get_color_mode_attribute(self) -> tuple[str, Any] | None:
         """Return color mode and attribute associated."""
         if self.color_mode == const.HASS_COLOR_MODE_COLOR_TEMP:
-            return const.HASS_ATTR_COLOR_TEMP, self.color_temp
+            # stored in mireds (Hue), Home Assistant only takes kelvin
+            return const.HASS_ATTR_COLOR_TEMP_KELVIN, kelvin_to_mired(self.color_temp)
         elif self.color_mode == const.HASS_COLOR_MODE_HS:
             return const.HASS_ATTR_HS_COLOR, self.hue_saturation
         elif self.color_mode == const.HASS_COLOR_MODE_XY:
@@ -92,11 +95,12 @@ class EntityState(BaseModel):
         if not states:
             return EntityState()
 
-        save_state = {}
-        for state in list(vars(cls).get("__fields__")):
-            if state in save_state:
-                save_state[state] = states[state]
-        return EntityState(**save_state)
+        save_state = {state: states[state] for state in cls.model_fields if state in states}
+        try:
+            return EntityState(**save_state)
+        except ValidationError as err:
+            LOGGER.warning("Ignoring invalid saved light state %s: %s", states, err)
+            return EntityState()
 
 
-ALL_STATES: list = list(vars(EntityState).get("__fields__"))
+ALL_STATES: list = list(EntityState.model_fields)

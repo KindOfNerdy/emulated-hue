@@ -37,6 +37,8 @@ class HueEmulator:
 
         await self._web.async_setup()
         self.ctl.loop.create_task(async_setup_discovery(self.ctl.config_instance))
+        # verbose logging: show every exported light as clients will see it
+        await self._web.v1_api.async_log_exported_lights()
         # remove legacy light_ids config
         if await self.ctl.config_instance.async_get_storage_value("light_ids"):
             await self.ctl.config_instance.async_delete_storage_value("light_ids")

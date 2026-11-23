@@ -1,11 +1,9 @@
 name: Dependabot auto-merge
 
 # Merges Dependabot PRs once all other checks passed (including the start test
-# against a fake Home Assistant), then starts the add-on release workflow.
-# Merged automatically: patch updates (also grouped ones) and security fixes up to
-# minor (group "security-fixes"), except zeroconf, uvloop and getmac, whose
-# behaviour on a real network the start test does not cover. Everything else stays
-# open for review.
+# against a fake Home Assistant: light list, control path, mDNS/SSDP discovery),
+# then starts the add-on release workflow. Merged automatically: patch and minor
+# updates (also grouped ones). Major updates stay open for review.
 on:
   pull_request:
     branches: [master]
@@ -33,16 +31,9 @@ jobs:
           DEPS: ${{ steps.meta.outputs.updated-dependencies-json }}
         run: |
           total=$(jq 'length' <<<"$DEPS")
-          # security fixes: patch and minor, but not the network-sensitive packages
           security=$(jq '[.[] | select(.dependencyGroup == "security-fixes")] | length' <<<"$DEPS")
-          if [ "$total" -gt 0 ] && [ "$security" -eq "$total" ]; then
-            kind="Security update"
-            majors=$(jq '[.[] | select(.updateType == "version-update:semver-major"
-              or (.dependencyName | ascii_downcase | IN("zeroconf","uvloop","getmac")))] | length' <<<"$DEPS")
-          else
-            kind="Updated dependencies"
-            majors=$(jq '[.[] | select(.updateType != "version-update:semver-patch")] | length' <<<"$DEPS")
-          fi
+          if [ "$total" -gt 0 ] && [ "$security" -eq "$total" ]; then kind="Security update"; else kind="Updated dependencies"; fi
+          majors=$(jq '[.[] | select(.updateType == "version-update:semver-major")] | length' <<<"$DEPS")
           if [ "$majors" -eq 0 ] && [ "$total" -gt 0 ]; then ok=true; else ok=false; fi
           echo "ok=$ok" >> "$GITHUB_OUTPUT"
           # only docker and production pip updates (requirements.txt) change the
