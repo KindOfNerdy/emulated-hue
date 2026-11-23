@@ -5,6 +5,8 @@ name: Add-on Image & Release
 # A weekly run checks whether the base image or s6-overlay changed (docker/base.lock).
 # It also checks whether the published image has pending Debian (security) updates.
 # If so, it rebuilds, bumps the patch version, updates the changelog and releases it.
+# The final image stage is always built without cache: a cached apt layer would
+# otherwise bring the old Debian packages back into the "rebuilt" image.
 # Only a version without a release yet is pushed, so released image tags never change.
 # A merged Dependabot update is released the same way. Pull requests only build,
 # smoke-test and scan the image; nothing is pushed or released for them.
@@ -128,6 +130,7 @@ jobs:
           pull: true
           tags: scan:latest
           build-args: BUILD_VERSION=${{ needs.prepare.outputs.version }}
+          no-cache-filters: final-build
           cache-from: type=gha,scope=amd64
           cache-to: type=gha,scope=amd64,mode=max
 
@@ -170,6 +173,7 @@ jobs:
             ${{ env.IMAGE }}:${{ needs.prepare.outputs.version }}
             ${{ env.IMAGE }}:latest
           build-args: BUILD_VERSION=${{ needs.prepare.outputs.version }}
+          no-cache-filters: final-build
           cache-from: type=gha,scope=amd64
           cache-to: type=gha,scope=multi,mode=max
 
