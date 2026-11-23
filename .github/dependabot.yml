@@ -14,21 +14,10 @@ updates:
     groups:
       python-dependencies:
         update-types: ["patch", "minor"]
-      # security fixes come as their own PR; the auto-merge workflow recognises
-      # them by this group name and also merges minor updates once the start
-      # test passed
+      # security fixes come as their own PR and form their own group
       security-fixes:
         applies-to: security-updates
         update-types: ["patch", "minor"]
-    # Not covered by tests: these changed behaviour between versions and need a
-    # manual check on a real Home Assistant before they are raised.
-    ignore:
-      - dependency-name: "zeroconf"
-        update-types: ["version-update:semver-minor", "version-update:semver-major"]
-      - dependency-name: "uvloop"
-        update-types: ["version-update:semver-minor", "version-update:semver-major"]
-      - dependency-name: "getmac"
-        update-types: ["version-update:semver-minor", "version-update:semver-major"]
   - package-ecosystem: "docker"
     directory: "/docker"
     schedule:

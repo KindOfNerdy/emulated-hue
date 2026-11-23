@@ -129,4 +129,21 @@ jq -e '.brightness == 100 and .hs_color[0] == 54 and .hs_color[1] == 78' \
   <<<"${on_call#SERVICE homeassistant.turn_on }" >/dev/null \
   || fail "unexpected turn_on for light.test_color: ${on_call:-none}"
 
+# colour temperature: the Hue API speaks mireds, Home Assistant kelvin
+jq -e '.capabilities.control.ct.min == 153 and .capabilities.control.ct.max == 500' \
+  <<<"$color" >/dev/null || fail "unexpected ct range: $(jq -c .capabilities.control <<<"$color")"
+curl -fs --max-time 5 -X PUT -d '{"on": true, "ct": 400}' \
+  "http://localhost:8080/api/$USER_ID/lights/$(jq -r 'to_entries[] | select(.value.state.colormode == "hs") | .key' <<<"$lights")/state" \
+  >/dev/null || fail "PUT ct failed"
+ct_call=""
+for _ in $(seq 1 10); do
+  ct_call=$(docker logs ehue-fakeha 2>&1 | grep '^SERVICE homeassistant.turn_on ' | grep 'color_temp_kelvin' | tail -1 || true)
+  [ -n "$ct_call" ] && break
+  sleep 1
+done
+echo "Colour temperature call: ${ct_call:-none}"
+jq -e '.color_temp_kelvin == 2500 and (has("color_temp") | not)' \
+  <<<"${ct_call#SERVICE homeassistant.turn_on }" >/dev/null \
+  || fail "unexpected colour temperature call: ${ct_call:-none}"
+
 echo "Start test passed: app connected to the fake Home Assistant and serves the Hue API."
