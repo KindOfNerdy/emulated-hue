@@ -1,4 +1,5 @@
 """Hold configuration variables for the emulated hue bridge."""
+
 import asyncio
 import datetime
 import hashlib
@@ -186,16 +187,7 @@ class Config:
         next_light_id = str(free_id)
         # generate unique id (fake zigbee address) from entity id
         unique_id = hashlib.md5(entity_id.encode()).hexdigest()
-        unique_id = "00:{}:{}:{}:{}:{}:{}:{}-{}".format(
-            unique_id[0:2],
-            unique_id[2:4],
-            unique_id[4:6],
-            unique_id[6:8],
-            unique_id[8:10],
-            unique_id[10:12],
-            unique_id[12:14],
-            unique_id[14:16],
-        )
+        unique_id = f"00:{unique_id[0:2]}:{unique_id[2:4]}:{unique_id[4:6]}:{unique_id[6:8]}:{unique_id[8:10]}:{unique_id[10:12]}:{unique_id[12:14]}-{unique_id[14:16]}"
         # create default light config
         light_config = {
             "entity_id": entity_id,
@@ -326,14 +318,15 @@ class Config:
         if not token:
             return
         try:
-            async with aiohttp.ClientSession() as session, session.post(
-                "http://supervisor/addons/self/restart",
-                headers={"Authorization": f"Bearer {token}"},
-            ) as resp:
+            async with (
+                aiohttp.ClientSession() as session,
+                session.post(
+                    "http://supervisor/addons/self/restart",
+                    headers={"Authorization": f"Bearer {token}"},
+                ) as resp,
+            ):
                 if resp.status != 200:
-                    LOGGER.error(
-                        "Restart through the Supervisor failed (%s)", resp.status
-                    )
+                    LOGGER.error("Restart through the Supervisor failed (%s)", resp.status)
         except aiohttp.ClientError as ex:
             LOGGER.error("Restart through the Supervisor failed: %s", ex)
 
@@ -423,9 +416,7 @@ class Config:
         """Get a value from persistent storage."""
         return self.get_storage_value(key, subkey, default)
 
-    def get_storage_value(
-        self, key: str, subkey: str = None, default: Any | None = None
-    ) -> Any:
+    def get_storage_value(self, key: str, subkey: str = None, default: Any | None = None) -> Any:
         """Get a value from persistent storage."""
         main_val = self._config.get(key, None)
         if main_val is None:
@@ -434,9 +425,7 @@ class Config:
             return main_val.get(subkey, default)
         return main_val
 
-    async def async_set_storage_value(
-        self, key: str, subkey: str, value: str or dict
-    ) -> None:
+    async def async_set_storage_value(self, key: str, subkey: str, value: str or dict) -> None:
         """Set a value in persistent storage."""
         needs_save = False
         if subkey is None and self._config.get(key) != value:
@@ -492,9 +481,7 @@ class Config:
         """Get details for given username."""
         user_data = await self.async_get_storage_value("users", username)
         if user_data:
-            user_data["last use date"] = (
-                datetime.datetime.now().isoformat().split(".")[0]
-            )
+            user_data["last use date"] = datetime.datetime.now().isoformat().split(".")[0]
             await self.async_set_storage_value("users", username, user_data)
         return user_data
 
@@ -559,9 +546,7 @@ class Config:
         msg = "Click the link below to enable pairing mode on the virtual bridge:\n\n"
         msg += f"**[Enable link mode]({url})**"
 
-        await self.ctl.controller_hass.async_create_notification(
-            msg, "hue_bridge_link_requested"
-        )
+        await self.ctl.controller_hass.async_create_notification(msg, "hue_bridge_link_requested")
 
         # make sure that the notification and link request are dismissed after 5 minutes
 
@@ -573,9 +558,7 @@ class Config:
     async def async_disable_link_mode_discovery(self) -> None:
         """Disable link mode discovery (remove notification in hass)."""
         self._link_mode_discovery_key = None
-        await self.ctl.controller_hass.async_dismiss_notification(
-            "hue_bridge_link_requested"
-        )
+        await self.ctl.controller_hass.async_dismiss_notification("hue_bridge_link_requested")
 
     def start_entertainment(self, group_conf: dict, user_data: dict) -> bool:
         """Start the entertainment mode server."""

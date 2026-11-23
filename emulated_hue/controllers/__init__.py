@@ -1,4 +1,5 @@
 """Controllers for emulated_hue."""
+
 import asyncio
 import logging
 
@@ -24,19 +25,13 @@ async def async_start(
     ctl.loop = asyncio.get_event_loop()
     # the HA client is initialized in the async_start because it needs a running loop
     ctl.controller_hass = HomeAssistantController(url=url, token=token)
-    ctl.config_instance = Config(
-        ctl, data_path, http_port, https_port, use_default_ports
-    )
+    ctl.config_instance = Config(ctl, data_path, http_port, https_port, use_default_ports)
     await ctl.controller_hass.connect()
     # optional filter: only export lights carrying one of these HA label_ids.
     # The add-on option (comma separated) takes precedence over the key in
     # emulated_hue.json.
-    option_labels = parse_include_labels(
-        load_json(SUPERVISOR_OPTIONS_FILE).get("include_labels")
-    )
-    json_labels = parse_include_labels(
-        ctl.config_instance.get_storage_value("include_labels")
-    )
+    option_labels = parse_include_labels(load_json(SUPERVISOR_OPTIONS_FILE).get("include_labels"))
+    json_labels = parse_include_labels(ctl.config_instance.get_storage_value("include_labels"))
     if json_labels and not option_labels:
         LOGGER.info(
             "emulated_hue.json contains include_labels %s (still used). To manage it "
