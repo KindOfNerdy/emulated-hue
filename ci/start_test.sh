@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Start test: runs the add-on image against a fake Home Assistant (ci/fake_ha.py)
 # and checks that the app connects, loads the full state and serves the Hue API,
-# including the light list with a colour light (fractional hs values from HA).
+# including the light list with a colour light (fractional hs values from HA)
+# and the control path (Hue state changes arrive as Home Assistant service calls).
 # The data directory is seeded with an API user so the light list can be read
 # without pairing.
 #
@@ -86,7 +87,8 @@ jq -e '.state.on == true and .state.bri == 128 and .state.hue == 5354 and .state
 app_log=$(docker logs ehue-app 2>&1)
 ha_log=$(docker logs ehue-fakeha 2>&1)
 
-for line in "Connected to Home Assistant" "Started HTTP webserver" "Started HTTPS webserver"; do
+for line in "Connected to Home Assistant" "Started HTTP webserver" "Started HTTPS webserver" \
+  "Exported 2 lights"; do
   grep -qF "$line" <<<"$app_log" || fail "missing log line: $line"
 done
 for bad in "Failed to create HTTP" "Cannot connect to Home Assistant" "Traceback"; do
@@ -96,5 +98,28 @@ for cmd in subscribe_events get_states config/area_registry/list \
   config/device_registry/list config/entity_registry/list; do
   grep -qx "COMMAND $cmd" <<<"$ha_log" || fail "app did not request $cmd"
 done
+
+# control path: switch the colour light (brightness + hue/sat) and turn the
+# dimmable light off through the Hue API; the fake must receive the service calls
+curl -fs --max-time 5 -X PUT -d '{"on": true, "bri": 100, "hue": 10000, "sat": 200}' \
+  "http://localhost:8080/api/$USER_ID/lights/$(jq -r 'to_entries[] | select(.value.state.colormode == "hs") | .key' <<<"$lights")/state" \
+  >/dev/null || fail "PUT colour light state failed"
+curl -fs --max-time 5 -X PUT -d '{"on": false}' \
+  "http://localhost:8080/api/$USER_ID/lights/$(jq -r 'to_entries[] | select(.value.state.colormode == null) | .key' <<<"$lights")/state" \
+  >/dev/null || fail "PUT dimmable light state failed"
+on_call=""; off_call=""
+for _ in $(seq 1 10); do
+  ha_log=$(docker logs ehue-fakeha 2>&1)
+  on_call=$(grep '^SERVICE homeassistant.turn_on ' <<<"$ha_log" | grep '"light.test_color"' | tail -1 || true)
+  off_call=$(grep '^SERVICE homeassistant.turn_off ' <<<"$ha_log" | grep '"light.test"' | tail -1 || true)
+  [ -n "$on_call" ] && [ -n "$off_call" ] && break
+  sleep 1
+done
+echo "Service calls: ${on_call:-none} | ${off_call:-none}"
+[ -n "$off_call" ] || fail "turn_off for light.test not received"
+# Hue hue 10000/65535 -> 54 degrees, sat 200/254 -> 78 %
+jq -e '.brightness == 100 and .hs_color[0] == 54 and .hs_color[1] == 78' \
+  <<<"${on_call#SERVICE homeassistant.turn_on }" >/dev/null \
+  || fail "unexpected turn_on for light.test_color: ${on_call:-none}"
 
 echo "Start test passed: app connected to the fake Home Assistant and serves the Hue API."

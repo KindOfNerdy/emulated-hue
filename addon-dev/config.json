@@ -1,6 +1,6 @@
 {
   "name": "Emulated HUE (Fork, Dev)",
-  "version": "0.4.0-dev.2",
+  "version": "0.4.0-dev.3",
   "image": "ghcr.io/kindofnerdy/emulated-hue",
   "slug": "emulated_hue_fork_dev",
   "description": "Development build of the fork: own ports and data directory, no Hue discovery",

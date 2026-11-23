@@ -4,7 +4,8 @@ Minimal fake Home Assistant for the CI start test.
 Speaks just enough of the websocket API for hass_client to connect and load the
 full state: auth handshake, subscribe_events, get_states and the area, device and
 entity registries. Every command type it receives is printed as "COMMAND <type>"
-so the start test can check that the app really requested the full state.
+so the start test can check that the app really requested the full state; service
+calls are additionally printed as "SERVICE <domain>.<service> <service_data json>".
 """
 
 import json
@@ -103,6 +104,13 @@ async def websocket(request: web.Request) -> web.WebSocketResponse:
             continue
         data = json.loads(msg.data)
         log("COMMAND", data.get("type"))
+        if data.get("type") == "call_service":
+            # one line per service call so the start test can check what was sent
+            log(
+                "SERVICE",
+                f"{data.get('domain')}.{data.get('service')}",
+                json.dumps(data.get("service_data") or {}, sort_keys=True),
+            )
         await ws.send_json(
             {
                 "id": data["id"],
