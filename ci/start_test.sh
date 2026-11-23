@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Start test: runs the add-on image against a fake Home Assistant (ci/fake_ha.py)
 # and checks that the app connects, loads the full state and serves the Hue API,
-# including the light list with a colour light (fractional hs values from HA)
-# and the control path (Hue state changes arrive as Home Assistant service calls).
+# including the light list with a colour light (fractional hs values from HA),
+# the control path (Hue state changes arrive as Home Assistant service calls) and
+# discovery (mDNS and SSDP answers, ci/discovery_check.py).
 # The data directory is seeded with an API user so the light list can be read
 # without pairing.
 #
@@ -71,6 +72,12 @@ echo "Bridge config: $http"
 
 curl -fs --max-time 5 -o /dev/null http://localhost:8080/description.xml \
   || fail "/description.xml not served"
+
+# discovery: mDNS (_hue._tcp) and SSDP answers inside the Docker network
+bridge_id=$(jq -r .bridgeid <<<"$http")
+discovery=$(docker run --rm --network "$NET" -v "$CI_DIR:/ci:ro" --entrypoint python "$IMAGE" \
+  /ci/discovery_check.py "$bridge_id" 2>&1) || fail "discovery check failed: $discovery"
+echo "$discovery"
 
 # light list: both fake lights must be exported, the colour light with its
 # hs values converted from HA degrees/percent (29.412, 85.098) to Hue (0-65535, 0-254)
