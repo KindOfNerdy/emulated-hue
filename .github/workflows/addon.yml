@@ -10,6 +10,10 @@ name: Add-on Image & Release
 # Only a version without a release yet is pushed, so released image tags never change.
 # A merged Dependabot update is released the same way. Pull requests only build,
 # smoke-test and scan the image; nothing is pushed or released for them.
+# Pushes to the dev branch build the development add-on (addon-dev/): the image is
+# pushed once per version from addon-dev/config.json, without the latest tag and
+# without a GitHub release, and addon-dev/ is copied to master, because Home
+# Assistant reads the add-on store from master.
 on:
   pull_request:
     branches: [master]
@@ -20,13 +24,14 @@ on:
       - requirements.txt
       - .github/workflows/addon.yml
   push:
-    branches: [master]
+    branches: [master, dev]
     paths:
       - docker/**
       - emulated_hue/**
       - ci/**
       - requirements.txt
       - addon/config.json
+      - addon-dev/config.json
       - .github/workflows/addon.yml
   schedule:
     - cron: "17 3 * * 1"
@@ -59,6 +64,7 @@ jobs:
       s6: ${{ steps.p.outputs.s6 }}
       reason: ${{ steps.p.outputs.reason }}
       publish: ${{ steps.p.outputs.publish }}
+      dev: ${{ steps.p.outputs.dev }}
     steps:
       - uses: actions/checkout@v7
 
@@ -68,14 +74,19 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NOTES: ${{ github.event.inputs.notes }}
         run: |
-          current=$(jq -r .version addon/config.json)
+          dev=false; cfg=addon/config.json
+          if [ "$GITHUB_REF" = "refs/heads/dev" ]; then dev=true; cfg=addon-dev/config.json; fi
+          current=$(jq -r .version "$cfg")
           version="$current"; bumped=false; init_lock=false
           reason="Automatic rebuild on an updated base image or s6-overlay (security updates)."
           author=$(git log -1 --format=%an)
           pyver=$(sed -n 's/^ARG PYTHON_VERSION="\(.*\)"/\1/p' docker/Dockerfile)
           base=$(docker buildx imagetools inspect "python:${pyver}-slim" --format '{{.Manifest.Digest}}')
           s6=$(gh api repos/just-containers/s6-overlay/releases/latest --jq .tag_name)
-          if [ "${{ github.event_name }}" = "schedule" ]; then
+          if [ "$dev" = true ]; then
+            # dev build: the version is maintained by hand in addon-dev/config.json, no bump
+            :
+          elif [ "${{ github.event_name }}" = "schedule" ]; then
             if [ ! -f docker/base.lock ]; then
               init_lock=true
             elif [ "$(cat docker/base.lock)" != "$(printf 'base=%s\ns6=%s' "$base" "$s6")" ]; then
@@ -99,13 +110,15 @@ jobs:
             version="${current%.*}.$(( ${current##*.} + 1 ))"
             reason="${NOTES:-Updated dependencies (automatic Dependabot update).}"
           fi
-          # only a version without a release yet is pushed; released tags never change
-          if gh release view "$version" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then publish=false; else publish=true; fi
+          # only a version without a release (dev: without a pushed image) is pushed; published tags never change
+          if [ "$dev" = true ]; then
+            if docker buildx imagetools inspect "$IMAGE:$version" >/dev/null 2>&1; then publish=false; else publish=true; fi
+          elif gh release view "$version" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then publish=false; else publish=true; fi
           {
-            echo "version=$version"; echo "bumped=$bumped"; echo "init_lock=$init_lock"; echo "publish=$publish"
+            echo "version=$version"; echo "bumped=$bumped"; echo "init_lock=$init_lock"; echo "publish=$publish"; echo "dev=$dev"
             echo "base=$base"; echo "s6=$s6"; echo "reason=$reason"
           } >> "$GITHUB_OUTPUT"
-          echo "current=$current new=$version base=$base s6=$s6 bumped=$bumped init=$init_lock"
+          echo "current=$current new=$version dev=$dev publish=$publish base=$base s6=$s6 bumped=$bumped init=$init_lock"
 
   image:
     needs: prepare
@@ -171,7 +184,7 @@ jobs:
           pull: true
           tags: |
             ${{ env.IMAGE }}:${{ needs.prepare.outputs.version }}
-            ${{ env.IMAGE }}:latest
+            ${{ needs.prepare.outputs.dev != 'true' && format('{0}:latest', env.IMAGE) || '' }}
           build-args: BUILD_VERSION=${{ needs.prepare.outputs.version }}
           no-cache-filters: final-build
           cache-from: type=gha,scope=amd64
@@ -212,7 +225,23 @@ jobs:
           git push origin HEAD:master
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
+      - name: Copy the dev add-on definition to master
+        if: ${{ needs.prepare.outputs.dev == 'true' }}
+        run: |
+          git fetch origin dev
+          git checkout origin/dev -- addon-dev
+          if git diff --cached --quiet; then
+            echo "addon-dev on master is already up to date."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Update dev add-on to ${{ needs.prepare.outputs.version }}"
+          git pull --rebase origin master
+          git push origin HEAD:master
+
       - name: Extract release notes from the changelog
+        if: ${{ needs.prepare.outputs.dev != 'true' }}
         run: |
           awk -v v="${{ needs.prepare.outputs.version }}" '
             $0 == "## " v { found = 1; next }
@@ -224,6 +253,7 @@ jobs:
           fi
 
       - name: Create release
+        if: ${{ needs.prepare.outputs.dev != 'true' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

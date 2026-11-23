@@ -1,0 +1,13 @@
+configuration:
+  data:
+    name: Data directory
+    description: Directory for emulated_hue.json and the certificates. Keep it separate from the production add-on (/config/hass-emulated-hue).
+  include_labels:
+    name: Export only lights with these labels
+    description: Home Assistant label IDs (not display names), comma separated, e.g. ambilight. Only lights that carry one of these labels on the entity itself are exported. Empty means all lights. Restart the add-on after changes.
+  verbose:
+    name: Verbose logging
+    description: Write more details to the log.
+network:
+  80/tcp: Hue HTTP API (the production add-on uses 80)
+  443/tcp: Hue HTTPS API (the production add-on uses 443)
