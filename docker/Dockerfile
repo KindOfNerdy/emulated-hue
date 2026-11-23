@@ -8,7 +8,7 @@ ARG BASHIO_VERSION="v0.15.0"
 # Build Wheels                                                      #
 #                                                                   #
 #####################################################################
-FROM python:${PYTHON_VERSION}-slim as wheels-builder
+FROM python:${PYTHON_VERSION}-slim AS wheels-builder
 ARG TARGETARCH
 
 ENV PATH="${PATH}:/root/.cargo/bin"
@@ -47,7 +47,7 @@ RUN set -x \
 # Download and extract s6 overlay                                   #
 #                                                                   #
 #####################################################################
-FROM alpine:latest as s6downloader
+FROM alpine:latest AS s6downloader
 # Required to persist build arg
 ARG TARGETARCH
 WORKDIR /s6downloader
@@ -71,7 +71,7 @@ RUN set -x \
 # Download and extract bashio                                       #
 #                                                                   #
 #####################################################################
-FROM alpine:latest as bashiodownloader
+FROM alpine:latest AS bashiodownloader
 ARG BASHIO_VERSION
 WORKDIR /bashio
 
